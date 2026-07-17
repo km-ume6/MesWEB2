@@ -1,0 +1,13 @@
+{
+  "ConnectionStrings": {
+	"Default": "Server=YOUR_SERVER,1433;Database=YOUR_DATABASE;User Id=YOUR_USER;Password=YOUR_PASSWORD;Encrypt=False;TrustServerCertificate=True;MultipleActiveResultSets=True;Connection Timeout=30"
+  },
+  "Logging": {
+	"LogLevel": {
+	  "Default": "Information",
+	  "Microsoft.AspNetCore": "Information",
+	  "Microsoft.EntityFrameworkCore": "Information"
+	}
+  },
+  "AllowedHosts": "*"
+}

@@ -20,9 +20,10 @@ builder.Logging.AddProvider(new FileLoggerProvider(Path.Combine(Directory.GetCur
 // Register code pages encoding provider so ExcelDataReader can read legacy .xls encodings
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-// appsettings.json のみを使用（環境別ファイル・環境変数は使用しない）
+// appsettings.json を基本設定として読み込み、必要に応じて appsettings.Production.json で上書きする
 builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+builder.Configuration.AddJsonFile("appsettings.Production.json", optional: true, reloadOnChange: true);
 
 // Add services to the container.
 var interactiveServerBuilder = builder.Services.AddRazorComponents()
