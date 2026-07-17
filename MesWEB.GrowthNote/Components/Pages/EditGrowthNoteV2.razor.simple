@@ -1,0 +1,122 @@
+@page "/growth-note-v2/edit/{id:int}"
+@rendermode InteractiveServer
+
+@using MesWEB.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>レコード編集（正規化版）</PageTitle>
+
+<h3>レコード編集（正規化版） - ID: @Id</h3>
+
+@if (currentItem == null)
+{
+    <p>読み込み中...</p>
+}
+else
+{
+    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+        <div class="mb-3">
+            <button type="submit" class="btn btn-primary">更新</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">キャンセル</button>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><strong>基本情報</strong></div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-md-3"><label>結晶育成日</label></div>
+                    <div class="col-md-3"><input type="date" @bind="currentItem.CrystalGrowthDate" class="form-control" /></div>
+                    <div class="col-md-3"><label>担当者</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.Operator" class="form-control" /></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-3"><label>装置名</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.MachineName" class="form-control" /></div>
+                    <div class="col-md-3"><label>添加元素</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.Dopants" class="form-control" /></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-3"><label>結晶ロット</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.CrystalLot" class="form-control" /></div>
+                    <div class="col-md-3"><label>坩堝番号</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.CrucibleName" class="form-control" /></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><strong>操作パラメータ</strong></div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-md-3"><label>引上げ時間（⊿ｔ）</label></div>
+                    <div class="col-md-3"><input type="number" @bind="currentItem.Parameters!.DeltaT" class="form-control" /></div>
+                    <div class="col-md-3"><label>電源出力電圧</label></div>
+                    <div class="col-md-3"><input type="number" @bind="currentItem.Parameters!.OutputVoltage" class="form-control" /></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><strong>断熱材・炉情報</strong></div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-md-3"><label>坩堝内カオウール</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.Insulation!.InsideInsulationComposition" class="form-control" /></div>
+                    <div class="col-md-3"><label>炉組条件①</label></div>
+                    <div class="col-md-3"><input type="text" @bind="currentItem.Insulation!.FurnaceCondition1" class="form-control" /></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <button type="submit" class="btn btn-primary">更新</button>
+            <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">キャンセル</button>
+        </div>
+    </form>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private GrowthNoteItem? currentItem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = DbFactory.CreateDbContext();
+        
+        currentItem = await db.GrowthNotes
+            .Include(g => g.Parameters)
+            .Include(g => g.Insulation)
+            .FirstOrDefaultAsync(g => g.CGNoteId == Id);
+
+        if (currentItem == null)
+        {
+            Navigation.NavigateTo("/growth-note-v2");
+            return;
+        }
+
+        // Parameters/Insulation が null の場合は初期化
+        currentItem.Parameters ??= new GrowthNoteParameters { CGNoteId = Id };
+        currentItem.Insulation ??= new GrowthNoteInsulation { CGNoteId = Id };
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (currentItem == null) return;
+
+        using var db = DbFactory.CreateDbContext();
+        
+        // 既存エンティティを更新
+        db.GrowthNotes.Update(currentItem);
+        await db.SaveChangesAsync();
+
+        Navigation.NavigateTo("/growth-note-v2");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/growth-note-v2");
+    }
+}

@@ -1,0 +1,10 @@
+@using MesWEB.ExcelCompare.Components.Pages
+@using MesWEB.GrowthNote.Components.Pages
+
+<Router AppAssembly="typeof(Program).Assembly"
+        AdditionalAssemblies="new[] { typeof(MesWEB.ExcelCompare.Components.Pages.ExcelCompare).Assembly, typeof(MesWEB.GrowthNote.Components.Pages.GrowthNoteV2).Assembly }">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

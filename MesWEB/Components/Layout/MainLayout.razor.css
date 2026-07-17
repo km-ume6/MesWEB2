@@ -1,0 +1,188 @@
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }
+
+/* New layout styles - light theme for better readability */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+.nav-pane {
+    width: 240px;
+    background: #f3f4f6; /* gray-100 - light */
+    color: #111827; /* gray-900 - dark text for readability */
+    padding: 1rem;
+    box-sizing: border-box;
+    border-right: 1px solid #e5e7eb; /* subtle separator */
+}
+
+.nav-header {
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.nav-link {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: #111827; /* inherit dark text */
+    text-decoration: none;
+    border-radius: 6px;
+}
+
+.nav-link.active,
+.nav-link:hover {
+    background: #eaf2ff; /* very light blue on hover/active */
+    color: #1e3a8a; /* darker blue text for emphasis */
+}
+
+.main-content {
+    flex: 1 1 auto;
+    padding: 1.5rem;
+    box-sizing: border-box;
+    background: #ffffff; /* white main content */
+    margin-left: 360px; /* デフォルト幅、JavaScriptで動的に調整される */
+    transition: margin-left 0.3s ease; /* スムーズなマージン変更アニメーション */
+}
+
+/* ハンバーガーメニューボタン */
+.hamburger-menu {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1002;
+    background-color: #0d6efd;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.hamburger-menu:hover {
+    background-color: #0b5ed7;
+    transform: scale(1.05);
+}
+
+.hamburger-menu:active {
+    transform: scale(0.95);
+}
+
+/* オーバーレイ */
+.nav-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+/* Responsive: collapse nav on small screens */
+@media (max-width: 768px) {
+    .hamburger-menu {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .nav-overlay {
+        display: block;
+    }
+
+    .nav-pane {
+        width: 100%;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .app-container {
+        flex-direction: column;
+    }
+
+    .main-content {
+        margin-left: 0 !important; /* モバイルではマージンなし */
+        padding: 1rem;
+    }
+}
+
+/* PC（タブレット含む）のホバー展開 */
+@media (min-width: 769px) {
+    .nav-pane {
+        position: relative;
+    }
+
+    .nav-pane:hover {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 400px;
+        min-width: 200px;
+        max-width: 400px;
+        height: 100vh;
+        height: calc(var(--vh, 1vh) * 100);
+        z-index: 1001;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+    }
+
+    .nav-pane:hover .header-short {
+        display: none;
+    }
+
+    .nav-pane:hover .header-full {
+        display: block;
+    }
+
+    .nav-pane:hover .nav-link {
+        justify-content: flex-start;
+        padding-left: 1.2rem;
+    }
+
+    .nav-pane:hover .link-text {
+        display: inline;
+    }
+
+    /* Ensure main content is shifted when desktop nav-pane is visible */
+    .main-content {
+        margin-left: 360px; /* match nav-pane width */
+    }
+}
+
+/* iOS Safari viewport height 対応 */
+@supports (-webkit-touch-callout: none) {
+    .app-container {
+        height: -webkit-fill-available;
+    }
+}

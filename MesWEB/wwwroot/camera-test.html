@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カメラテスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            background: black;
+            margin: 20px 0;
+            display: block;
+            border-radius: 8px;
+        }
+        .info {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #result {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>📹 カメラテスト</h1>
+    
+    <div class="info">
+        <p><strong>🌐 接続:</strong> <span id="protocol"></span></p>
+        <p><strong>🔒 Secure Context:</strong> <span id="secureContext"></span></p>
+        <p><strong>📱 MediaDevices API:</strong> <span id="mediaDevices"></span></p>
+        <p><strong>📸 getUserMedia:</strong> <span id="getUserMedia"></span></p>
+    </div>
+
+    <button onclick="testCamera()">📹 カメラテスト実行</button>
+    <button onclick="stopCamera()">⏹️ カメラ停止</button>
+    <button onclick="checkPermissions()">🔍 権限確認</button>
+    <button onclick="enumerateDevices()">📋 デバイス一覧</button>
+
+    <video id="video" autoplay playsinline muted style="display:none;"></video>
+
+    <div id="result" class="info"></div>
+
+    <script>
+        console.log('Script loaded');
+        
+        const video = document.getElementById('video');
+        const result = document.getElementById('result');
+        let stream = null;
+
+        function log(msg) {
+            const timestamp = new Date().toLocaleTimeString('ja-JP');
+            const line = '[' + timestamp + '] ' + msg;
+            result.textContent += line + '\n';
+            console.log(msg);
+        }
+
+        // ページ読み込み時
+        window.addEventListener('DOMContentLoaded', () => {
+            log('=== ページ読み込み完了 ===');
+            
+            const protocol = window.location.protocol;
+            const isSecure = window.isSecureContext;
+            const hasMediaDevices = !!navigator.mediaDevices;
+            const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            
+            document.getElementById('protocol').textContent = protocol;
+            document.getElementById('secureContext').textContent = isSecure ? 'はい ✅' : 'いいえ ❌';
+            document.getElementById('mediaDevices').textContent = hasMediaDevices ? '利用可能 ✅' : '利用不可 ❌';
+            document.getElementById('getUserMedia').textContent = hasGetUserMedia ? '利用可能 ✅' : '利用不可 ❌';
+            
+            log('Protocol: ' + protocol);
+            log('Secure Context: ' + isSecure);
+            log('MediaDevices: ' + hasMediaDevices);
+            log('getUserMedia: ' + hasGetUserMedia);
+            log('User Agent: ' + navigator.userAgent.substring(0, 80) + '...');
+            
+            if (!isSecure) {
+                log('⚠️ 警告: HTTPSではありません。カメラが動作しない可能性があります。');
+            }
+        });
+
+        async function testCamera() {
+            console.log('testCamera called');
+            log('\n=== カメラテスト開始 ===');
+            
+            try {
+                log('Step 1: MediaDevices チェック');
+                if (!navigator.mediaDevices) {
+                    log('❌ navigator.mediaDevices が利用できません');
+                    alert('MediaDevices API が利用できません');
+                    return;
+                }
+                log('✅ MediaDevices 利用可能');
+                
+                log('Step 2: getUserMedia チェック');
+                if (!navigator.mediaDevices.getUserMedia) {
+                    log('❌ getUserMedia が利用できません');
+                    alert('getUserMedia API が利用できません');
+                    return;
+                }
+                log('✅ getUserMedia 利用可能');
+
+                log('Step 3: カメラへのアクセスを要求中...');
+                const constraints = { video: true, audio: false };
+                log('Constraints: ' + JSON.stringify(constraints));
+                
+                log('Step 4: getUserMedia 呼び出し...');
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                log('✅ カメラストリーム取得成功');
+                
+                log('Step 5: ビデオトラック確認');
+                const tracks = stream.getVideoTracks();
+                log('ビデオトラック数: ' + tracks.length);
+                
+                if (tracks.length > 0) {
+                    const settings = tracks[0].getSettings();
+                    log('カメラ設定: ' + JSON.stringify(settings));
+                }
+                
+                log('Step 6: ビデオ要素にストリームを設定');
+                video.srcObject = stream;
+                video.style.display = 'block';
+                
+                log('Step 7: メタデータ読み込み待機');
+                video.onloadedmetadata = () => {
+                    log('✅ ビデオメタデータ読み込み完了');
+                    log('解像度: ' + video.videoWidth + 'x' + video.videoHeight);
+                };
+                
+                log('Step 8: ビデオ再生開始');
+                await video.play();
+                log('✅ ビデオ再生開始');
+                
+                alert('カメラ起動成功！');
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                log('❌ エラー発生');
+                log('Error name: ' + error.name);
+                log('Error message: ' + error.message);
+                log('Error stack: ' + (error.stack || 'スタックトレースなし'));
+                
+                let errorMsg = 'カメラエラー: ' + error.name + '\n' + error.message + '\n\n';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += '原因: カメラの使用が拒否されました\n解決方法: ブラウザの設定でカメラを許可してください';
+                    log('💡 ヒント: ブラウザのアドレスバーにカメラアイコンがあれば、そこから許可できます');
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg += '原因: カメラが見つかりません\n解決方法: デバイスにカメラが接続されているか確認してください';
+                } else if (error.name === 'NotReadableError') {
+                    errorMsg += '原因: カメラが他のアプリで使用中です\n解決方法: 他のアプリを閉じてください';
+                } else if (error.name === 'SecurityError') {
+                    errorMsg += '原因: セキュリティエラー\n解決方法: HTTPSで接続してください';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMsg += '原因: カメラの制約を満たせません\n解決方法: カメラの要求仕様を変更してください';
+                } else if (error.name === 'TypeError') {
+                    errorMsg += '原因: 引数の型エラー\n解決方法: ブラウザが古い可能性があります';
+                }
+                
+                alert(errorMsg);
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                    log('トラック停止: ' + track.kind);
+                });
+                stream = null;
+            }
+            video.srcObject = null;
+            video.style.display = 'none';
+            log('カメラ停止');
+        }
+
+        async function checkPermissions() {
+            log('\n=== 権限確認 ===');
+            try {
+                if (!navigator.permissions) {
+                    log('⚠️ Permissions API は利用できません');
+                    alert('Permissions APIは利用できません。手動で権限を確認してください。');
+                    return;
+                }
+                
+                log('カメラ権限をクエリ中...');
+                const result = await navigator.permissions.query({ name: 'camera' });
+                log('カメラ権限の状態: ' + result.state);
+                
+                let msg = 'カメラ権限: ' + result.state + '\n\n';
+                if (result.state === 'granted') {
+                    msg += '✅ 許可されています';
+                } else if (result.state === 'prompt') {
+                    msg += '⚠️ まだ許可されていません（カメラ使用時に確認されます）';
+                } else if (result.state === 'denied') {
+                    msg += '❌ 拒否されています\nブラウザの設定から許可してください';
+                }
+                
+                alert(msg);
+            } catch (error) {
+                log('❌ 権限確認エラー: ' + error.message);
+                alert('権限確認エラー: ' + error.message);
+            }
+        }
+
+        async function enumerateDevices() {
+            log('\n=== デバイス一覧 ===');
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    log('❌ enumerateDevices は利用できません');
+                    alert('enumerateDevices APIは利用できません');
+                    return;
+                }
+                
+                log('デバイスを列挙中...');
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                log('検出されたデバイス数: ' + devices.length);
+                
+                const videoInputs = devices.filter(d => d.kind === 'videoinput');
+                const audioInputs = devices.filter(d => d.kind === 'audioinput');
+                const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                
+                log('ビデオ入力: ' + videoInputs.length + '個');
+                log('オーディオ入力: ' + audioInputs.length + '個');
+                log('オーディオ出力: ' + audioOutputs.length + '個');
+                
+                let msg = 'デバイス一覧\n\n';
+                msg += 'ビデオ入力: ' + videoInputs.length + '個\n';
+                
+                videoInputs.forEach((device, index) => {
+                    const label = device.label || '(ラベルなし - 権限が必要)';
+                    log('  [' + index + '] ' + label);
+                    msg += '  [' + index + '] ' + label + '\n';
+                });
+                
+                if (videoInputs.length === 0) {
+                    msg += '\n⚠️ カメラが見つかりません\n';
+                    msg += '権限がない場合、デバイス情報が表示されないことがあります。';
+                }
+                
+                alert(msg);
+            } catch (error) {
+                log('❌ デバイス列挙エラー: ' + error.message);
+                alert('デバイス列挙エラー: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

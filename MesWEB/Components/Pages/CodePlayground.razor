@@ -1,0 +1,541 @@
+@page "/code-playground"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IWebHostEnvironment HostEnvironment
+
+<PageTitle>コード実験</PageTitle>
+
+<div class="container py-4">
+    <h3 class="mb-2">コード実験</h3>
+    <div class="text-muted small mb-3">10秒ごとにファイル内容を更新します。</div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">ファイル名</label>
+                    <InputText @bind-Value="inputFileName" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">保存済み設定読込</label>
+                    <div class="input-group">
+                        <InputSelect @bind-Value="selectedSavedFileName" class="form-select">
+                            <option value="">選択してください</option>
+                            @foreach (var savedFileName in savedFileNames)
+                            {
+                                <option value="@savedFileName">@savedFileName</option>
+                            }
+                        </InputSelect>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="LoadSelectedSettingsAsync" disabled="@(!savedFileNames.Any())">設定読込</button>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-9">
+                    <div class="row g-2">
+                        @for (var i = 0; i < inputColumnSettings.Count; i++)
+                        {
+                            var setting = inputColumnSettings[i];
+                            <div class="col-12 col-md-6 col-xl-4">
+                                <div class="border rounded p-2 h-100 bg-light">
+                                    <div class="fw-bold small mb-2">表示@(i + 1)</div>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small">列番号</label>
+                                            <InputNumber @bind-Value="setting.ColumnNumber" class="form-control" />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small">小数点位置</label>
+                                            <InputNumber @bind-Value="setting.DecimalPosition" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="col-12 col-lg-3">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" @onclick="ApplySettingsAsync">表示更新</button>
+                        <button type="button" class="btn btn-outline-primary" @onclick="SaveSettingsAsync">設定保存</button>
+                    </div>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(statusMessage))
+            {
+                <div class="alert alert-success mt-3 mb-0">@statusMessage</div>
+            }
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div><strong>対象ファイル:</strong> <code>@TargetFilePath</code></div>
+            <div class="mt-1"><strong>表示設定:</strong> @string.Join(", ", activeColumnSettings.Select(x => $"列{x.ColumnNumber} / 小数{x.DecimalPosition}"))</div>
+            <div class="mt-2"><strong>最終読込:</strong> @(lastReadAt?.ToString("yyyy/MM/dd HH:mm:ss") ?? "-")</div>
+            <div class="mt-1"><strong>ファイル更新日時:</strong> @(fileLastWriteTime?.ToString("yyyy/MM/dd HH:mm:ss") ?? "-")</div>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+            }
+            else
+            {
+                <div class="row g-3 mt-1">
+                    @foreach (var item in columnDisplays)
+                    {
+                        <div class="col-12 col-xl-6">
+                            <div class="border rounded p-3 h-100 bg-light">
+                                <div class="fw-bold mb-2">表示@(item.SettingNumber)</div>
+                                <pre class="bg-white border rounded p-3 mb-0" style="white-space: pre-wrap; word-break: break-all; max-height: 45vh; overflow: auto;">@item.Content</pre>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="fw-bold mb-2">最終行の全列一覧</div>
+            @if (allColumns.Count == 0)
+            {
+                <div class="text-muted">表示できるデータがありません。</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 120px;">列番号</th>
+                                <th>値</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in allColumns)
+                            {
+                                <tr>
+                                    <td>@item.ColumnNumber</td>
+                                    <td style="white-space: pre-wrap; word-break: break-all;">@item.Value</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string TargetDirectoryPath = @"\\IKUSEI2026-7\ProServer$";
+    private const string SettingsDirectoryName = "App_Data";
+    private const string SettingsFileName = "code-playground-settings.json";
+    private const int DisplayCount = 6;
+    private static readonly System.Text.Encoding FileEncoding = System.Text.Encoding.GetEncoding(932);
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private const int MaxReadRetries = 5;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(500);
+
+    private string inputFileName = "G2.CSV";
+    private List<ColumnSetting> inputColumnSettings = CreateDefaultColumnSettings();
+    private string activeFileName = "G2.CSV";
+    private List<ColumnSetting> activeColumnSettings = CreateDefaultColumnSettings();
+    private List<string> savedFileNames = [];
+    private string? selectedSavedFileName;
+
+    private List<ColumnDisplayItem> columnDisplays = [];
+    private List<AllColumnItem> allColumns = [];
+    private string? errorMessage;
+    private string? statusMessage;
+    private DateTime? lastReadAt;
+    private DateTime? fileLastWriteTime;
+    private CancellationTokenSource? refreshCts;
+    private Task? refreshTask;
+
+    private string TargetFilePath => Path.Combine(TargetDirectoryPath, activeFileName);
+    private string SettingsFilePath => Path.Combine(HostEnvironment.ContentRootPath, SettingsDirectoryName, SettingsFileName);
+
+    protected override async Task OnInitializedAsync()
+    {
+        refreshCts = new CancellationTokenSource();
+
+        await LoadSavedFileNamesAsync();
+        selectedSavedFileName = savedFileNames.FirstOrDefault(x => string.Equals(x, inputFileName, StringComparison.OrdinalIgnoreCase));
+
+        await RefreshFileContentAsync();
+        refreshTask = StartPollingAsync(refreshCts.Token);
+    }
+
+    private async Task ApplySettingsAsync()
+    {
+        if (!TryValidateInputSettings(out var normalizedFileName))
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        activeFileName = normalizedFileName;
+        activeColumnSettings = CloneColumnSettings(inputColumnSettings);
+        errorMessage = null;
+        statusMessage = null;
+
+        await RefreshFileContentAsync();
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (!TryValidateInputSettings(out var normalizedFileName))
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var store = await ReadSettingsStoreAsync();
+        var existing = store.Files.FirstOrDefault(x => string.Equals(x.FileName, normalizedFileName, StringComparison.OrdinalIgnoreCase));
+        var settingsToSave = CloneColumnSettings(inputColumnSettings);
+
+        if (existing is null)
+        {
+            store.Files.Add(new SavedFileSetting
+            {
+                FileName = normalizedFileName,
+                ColumnSettings = settingsToSave
+            });
+        }
+        else
+        {
+            existing.FileName = normalizedFileName;
+            existing.ColumnSettings = settingsToSave;
+        }
+
+        await WriteSettingsStoreAsync(store);
+        await LoadSavedFileNamesAsync();
+
+        selectedSavedFileName = normalizedFileName;
+        statusMessage = $"設定を保存しました: {normalizedFileName}";
+        errorMessage = null;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadSelectedSettingsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(selectedSavedFileName))
+        {
+            errorMessage = "読込対象のファイル名を選択してください。";
+            statusMessage = null;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var store = await ReadSettingsStoreAsync();
+        var savedSetting = store.Files.FirstOrDefault(x => string.Equals(x.FileName, selectedSavedFileName, StringComparison.OrdinalIgnoreCase));
+
+        if (savedSetting is null)
+        {
+            errorMessage = "選択した設定が見つかりませんでした。";
+            statusMessage = null;
+            await LoadSavedFileNamesAsync();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        inputFileName = savedSetting.FileName;
+        inputColumnSettings = NormalizeColumnSettings(savedSetting.ColumnSettings);
+        statusMessage = $"設定を読み込みました: {savedSetting.FileName}";
+        errorMessage = null;
+
+        await ApplySettingsAsync();
+    }
+
+    private async Task LoadSavedFileNamesAsync()
+    {
+        var store = await ReadSettingsStoreAsync();
+        savedFileNames = store.Files
+            .Select(x => x.FileName)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(selectedSavedFileName) && !savedFileNames.Contains(selectedSavedFileName, StringComparer.OrdinalIgnoreCase))
+        {
+            selectedSavedFileName = null;
+        }
+    }
+
+    private async Task<SettingsStore> ReadSettingsStoreAsync()
+    {
+        if (!File.Exists(SettingsFilePath))
+        {
+            return new SettingsStore();
+        }
+
+        await using var stream = new FileStream(SettingsFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        var store = await System.Text.Json.JsonSerializer.DeserializeAsync<SettingsStore>(stream, JsonOptions);
+        store ??= new SettingsStore();
+
+        foreach (var item in store.Files)
+        {
+            item.FileName = NormalizeFileName(item.FileName);
+            item.ColumnSettings = NormalizeColumnSettings(item.ColumnSettings);
+        }
+
+        return store;
+    }
+
+    private async Task WriteSettingsStoreAsync(SettingsStore store)
+    {
+        var directoryPath = Path.GetDirectoryName(SettingsFilePath);
+        if (!string.IsNullOrWhiteSpace(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        await using var stream = new FileStream(SettingsFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true);
+        await System.Text.Json.JsonSerializer.SerializeAsync(stream, store, JsonOptions);
+    }
+
+    private bool TryValidateInputSettings(out string normalizedFileName)
+    {
+        normalizedFileName = NormalizeFileName(inputFileName);
+        statusMessage = null;
+
+        if (string.IsNullOrWhiteSpace(normalizedFileName))
+        {
+            errorMessage = "ファイル名を入力してください。";
+            return false;
+        }
+
+        if (inputColumnSettings.Any(x => x.ColumnNumber < 1))
+        {
+            errorMessage = "列番号はすべて1以上で指定してください。";
+            return false;
+        }
+
+        if (inputColumnSettings.Any(x => x.DecimalPosition < 0))
+        {
+            errorMessage = "小数点位置は0以上で指定してください。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task StartPollingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                await RefreshFileContentAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshFileContentAsync()
+    {
+        try
+        {
+            var result = await ReadFileWithRetryAsync(TargetFilePath, activeColumnSettings, refreshCts?.Token ?? CancellationToken.None);
+            columnDisplays = result.ColumnDisplays.ToList();
+            allColumns = result.AllColumns.ToList();
+            fileLastWriteTime = result.LastWriteTime;
+            lastReadAt = DateTime.Now;
+            errorMessage = null;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            lastReadAt = DateTime.Now;
+            errorMessage = $"ファイルを読み込めませんでした: {ex.Message}";
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static async Task<FileReadResult> ReadFileWithRetryAsync(string filePath, IReadOnlyList<ColumnSetting> columnSettings, CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+
+        for (var attempt = 1; attempt <= MaxReadRetries; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var lastWriteTime = System.IO.File.GetLastWriteTime(filePath);
+
+                await using var stream = new FileStream(
+                    filePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    bufferSize: 4096,
+                    useAsync: true);
+
+                using var reader = new StreamReader(stream, FileEncoding, detectEncodingFromByteOrderMarks: true);
+                using var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser(reader)
+                {
+                    TextFieldType = Microsoft.VisualBasic.FileIO.FieldType.Delimited,
+                    HasFieldsEnclosedInQuotes = true
+                };
+                parser.SetDelimiters(",");
+
+                var columnIndexes = columnSettings.Select(x => x.ColumnNumber - 1).ToArray();
+                var valuesByColumn = columnSettings.Select(_ => new List<string>()).ToArray();
+                string[] lastFields = [];
+
+                while (!parser.EndOfData)
+                {
+                    var fields = parser.ReadFields() ?? [];
+                    lastFields = fields;
+
+                    for (var i = 0; i < columnIndexes.Length; i++)
+                    {
+                        var columnIndex = columnIndexes[i];
+                        var rawValue = columnIndex < fields.Length ? fields[columnIndex] : string.Empty;
+                        valuesByColumn[i].Add(FormatDecimalValue(rawValue, columnSettings[i].DecimalPosition));
+                    }
+                }
+
+                var displays = columnSettings
+                    .Select((setting, index) => new ColumnDisplayItem(
+                        index + 1,
+                        setting.ColumnNumber,
+                        setting.DecimalPosition,
+                        string.Join(Environment.NewLine, valuesByColumn[index]),
+                        valuesByColumn[index].Count))
+                    .ToArray();
+
+                var allColumns = lastFields
+                    .Select((value, index) => new AllColumnItem(index + 1, value))
+                    .ToArray();
+
+                return new FileReadResult(displays, allColumns, lastWriteTime);
+            }
+            catch (IOException ex)
+            {
+                lastException = ex;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                lastException = ex;
+            }
+
+            if (attempt < MaxReadRetries)
+            {
+                await Task.Delay(RetryDelay, cancellationToken);
+            }
+        }
+
+        throw lastException ?? new IOException("ファイル読み込みに失敗しました。");
+    }
+
+    private static string FormatDecimalValue(string? rawValue, int decimalPosition)
+    {
+        var value = rawValue?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(value) || decimalPosition <= 0)
+        {
+            return value;
+        }
+
+        var sign = string.Empty;
+        if (value.StartsWith('-') || value.StartsWith('+'))
+        {
+            sign = value[..1];
+            value = value[1..];
+        }
+
+        if (!value.All(char.IsDigit))
+        {
+            return sign + value;
+        }
+
+        if (value.Length <= decimalPosition)
+        {
+            value = value.PadLeft(decimalPosition + 1, '0');
+        }
+
+        var splitIndex = value.Length - decimalPosition;
+        return $"{sign}{value[..splitIndex]}.{value[splitIndex..]}";
+    }
+
+    private static string NormalizeFileName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return string.Empty;
+        }
+
+        return Path.GetFileName(fileName.Trim());
+    }
+
+    private static List<ColumnSetting> CreateDefaultColumnSettings()
+    {
+        return Enumerable.Range(1, DisplayCount)
+            .Select(x => new ColumnSetting { ColumnNumber = x, DecimalPosition = 0 })
+            .ToList();
+    }
+
+    private static List<ColumnSetting> CloneColumnSettings(IEnumerable<ColumnSetting> source)
+    {
+        return source
+            .Select(x => new ColumnSetting { ColumnNumber = x.ColumnNumber, DecimalPosition = x.DecimalPosition })
+            .ToList();
+    }
+
+    private static List<ColumnSetting> NormalizeColumnSettings(IEnumerable<ColumnSetting>? source)
+    {
+        var normalized = source?
+            .Take(DisplayCount)
+            .Select(x => new ColumnSetting
+            {
+                ColumnNumber = x.ColumnNumber > 0 ? x.ColumnNumber : 1,
+                DecimalPosition = x.DecimalPosition >= 0 ? x.DecimalPosition : 0
+            })
+            .ToList() ?? [];
+
+        while (normalized.Count < DisplayCount)
+        {
+            normalized.Add(new ColumnSetting { ColumnNumber = normalized.Count + 1, DecimalPosition = 0 });
+        }
+
+        return normalized;
+    }
+
+    public void Dispose()
+    {
+        refreshCts?.Cancel();
+        refreshCts?.Dispose();
+    }
+
+    private sealed class ColumnSetting
+    {
+        public int ColumnNumber { get; set; }
+        public int DecimalPosition { get; set; }
+    }
+
+    private sealed class SettingsStore
+    {
+        public List<SavedFileSetting> Files { get; set; } = [];
+    }
+
+    private sealed class SavedFileSetting
+    {
+        public string FileName { get; set; } = string.Empty;
+        public List<ColumnSetting> ColumnSettings { get; set; } = [];
+    }
+
+    private sealed record FileReadResult(IReadOnlyList<ColumnDisplayItem> ColumnDisplays, IReadOnlyList<AllColumnItem> AllColumns, DateTime LastWriteTime);
+    private sealed record ColumnDisplayItem(int SettingNumber, int ColumnNumber, int DecimalPosition, string Content, int ValueCount);
+    private sealed record AllColumnItem(int ColumnNumber, string Value);
+}

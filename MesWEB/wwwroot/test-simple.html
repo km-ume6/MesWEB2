@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプルテスト</title>
+</head>
+<body>
+    <h1>テストページ</h1>
+    <p>このページが表示されていればHTMLは正常です</p>
+    <button onclick="alert('JavaScriptが動作しています!')">クリックしてテスト</button>
+    
+    <script>
+        console.log('JavaScript loaded');
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            document.body.style.background = '#e0ffe0';
+        });
+    </script>
+</body>
+</html>

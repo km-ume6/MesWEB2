@@ -1,0 +1,146 @@
+@page "/growth-note-v2/add"
+@rendermode InteractiveServer
+
+@using MesWEB.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>新規レコード（正規化版）</PageTitle>
+
+<h3>新規レコード（正規化版）</h3>
+
+<form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">キャンセル</button>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>基本情報</strong></div>
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-3"><label>結晶育成日</label></div>
+                <div class="col-md-3"><input type="date" @bind="newItem.CrystalGrowthDate" class="form-control" /></div>
+                <div class="col-md-3"><label>担当者</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Operator" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>装置名</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.MachineName" class="form-control" /></div>
+                <div class="col-md-3"><label>添加元素</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Dopants" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>添加量</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.DopantAmount" class="form-control" /></div>
+                <div class="col-md-3"><label>添加濃度(ppm)</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.ppm" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>結晶ロット</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.CrystalLot" class="form-control" /></div>
+                <div class="col-md-3"><label>坩堝番号</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.CrucibleName" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>坩堝使用回数</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.CrucibleCount" class="form-control" /></div>
+                <div class="col-md-3"><label>結晶ヘッド径</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.HeadDiameter" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>結晶テール径</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.TailDiameter" class="form-control" /></div>
+                <div class="col-md-3"><label>備考</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Remarks" class="form-control" /></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>操作パラメータ</strong></div>
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-3"><label>引上げ時間（⊿ｔ）</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.Parameters!.DeltaT" class="form-control" /></div>
+                <div class="col-md-3"><label>ネッキング時電源出力</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.Parameters!.NeckingVoltage" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>育成時電源出力</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.Parameters!.GrowthVoltage" class="form-control" /></div>
+                <div class="col-md-3"><label>シード位置</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.Parameters!.SeedHeightPosition" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>初期引上げ速度</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.Parameters!.StartPullingSpeed" class="form-control" /></div>
+                <div class="col-md-3"><label>直胴部引上げ速度</label></div>
+                <div class="col-md-3"><input type="number" step="0.01" @bind="newItem.Parameters!.LastPullingSpeed" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>電源出力電圧</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.Parameters!.OutputVoltage" class="form-control" /></div>
+                <div class="col-md-3"><label>電源出力電流</label></div>
+                <div class="col-md-3"><input type="number" @bind="newItem.Parameters!.OutputCurrent" class="form-control" /></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>断熱材・炉情報</strong></div>
+        <div class="card-body">
+            <div class="row mb-2">
+                <div class="col-md-3"><label>坩堝内カオウール</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.InsideInsulationComposition" class="form-control" /></div>
+                <div class="col-md-3"><label>坩堝底カオウール</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.BottomInsulationComposition" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>炉組条件①</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.FurnaceCondition1" class="form-control" /></div>
+                <div class="col-md-3"><label>炉組条件②</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.FurnaceCondition2" class="form-control" /></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-md-3"><label>ジルコニア円板</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.UsingDisk" class="form-control" /></div>
+                <div class="col-md-3"><label>液面高さ</label></div>
+                <div class="col-md-3"><input type="text" @bind="newItem.Insulation!.LiquidLevel" class="form-control" /></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">キャンセル</button>
+    </div>
+</form>
+
+@code {
+    private GrowthNoteItem newItem = new()
+    {
+        CrystalGrowthDate = DateTime.Today,
+        Parameters = new GrowthNoteParameters(),
+        Insulation = new GrowthNoteInsulation()
+    };
+
+    private async Task HandleSubmit()
+    {
+        newItem.CreatedAt = DateTime.UtcNow;
+
+        using var db = DbFactory.CreateDbContext();
+        
+        // Parameters と Insulation は自動的に保存される（Cascade設定済み）
+        db.GrowthNotes.Add(newItem);
+        await db.SaveChangesAsync();
+
+        Navigation.NavigateTo("/growth-note-v2");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/growth-note-v2");
+    }
+}

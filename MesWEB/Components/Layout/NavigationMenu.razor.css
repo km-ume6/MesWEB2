@@ -1,0 +1,150 @@
+/* Navigation menu - desktop fixed, mobile hamburger/off-canvas */
+
+/* Base / Desktop (default) */
+.nav-pane {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 360px;      /* デフォルト幅、JavaScriptで動的に調整される */
+    min-width: 220px;
+    height: 100vh;
+    background-color: #071029;
+    padding: 1rem 0.75rem;
+    box-sizing: border-box;
+    box-shadow: 2px 0 18px rgba(2,6,23,0.45);
+    z-index: 1100; /* put nav above overlay */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transition: width 0.3s ease; /* スムーズな幅変更アニメーション */
+}
+
+.nav-header {
+    font-weight: 700;
+    color: #bfe6ff; /* increase contrast */
+    text-align: center;
+    margin-bottom: 1rem;
+    padding: 0.25rem 0;
+    font-size: 1.05rem;
+}
+
+.header-short { display: none; }
+.header-full { display: block; }
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.25rem 0;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    color: #ffffff; /* brighter text */
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 1.0rem;
+    cursor: pointer;
+}
+
+.nav-link .icon-wrapper i {
+    color: #cfeeff;
+}
+
+/* Ensure the NavLink fills the horizontal space so taps register anywhere on the row */
+.nav-link {
+    width: 100%;
+}
+
+.icon-wrapper {
+    display: inline-flex;
+    width: 36px; /* icon slot width inside full pane */
+    min-width: 36px;
+    justify-content: center;
+    align-items: center;
+}
+
+.link-text {
+    display: inline-block;
+    opacity: 1;
+    transform: none;
+    color: #ffffff; /* ensure explicit color for link text */
+}
+
+.nav-link:hover, .nav-link:focus {
+    background-color: rgba(255,255,255,0.04);
+    color: #ffffff;
+}
+
+.nav-link.active {
+    background-color: rgba(255,193,7,0.12);
+    color: #111827;
+    border-left: 4px solid rgba(255,107,107,0.95);
+}
+
+/* Hamburger button: hidden on desktop */
+.hamburger-menu {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1150;
+    background-color: #0d6efd;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Nav overlay (when mobile open) */
+.nav-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.45);
+    z-index: 1050; /* below nav-pane */
+}
+
+/* Mobile / narrow screens: use hamburger and off-canvas nav */
+@media (max-width: 768px) {
+    /* show hamburger */
+    .hamburger-menu { display: flex; }
+
+    /* off-canvas pane */
+    .nav-pane {
+        left: -260px; /* hidden by default */
+        width: 260px !important; /* モバイルでは固定幅 */
+        min-width: 260px;
+        padding: 1rem 1rem;
+        transition: left 0.28s ease; /* モバイルではleftのアニメーションのみ */
+        z-index: 1160; /* ensure above overlay on mobile */
+    }
+
+    .nav-pane.open { left: 0; }
+
+    /* header: show short version in collapsed place (if visible) */
+    .header-short { display: block; color: #aee1ff; font-weight:700; }
+    .header-full { display: none; }
+
+    /* link text visible when open (since pane is off-canvas otherwise not visible) */
+    .link-text { opacity: 1; }
+
+    /* overlay when open */
+    .nav-overlay {
+        display: block;
+    }
+
+    .nav-link {
+        padding: 0.75rem 0.75rem;
+        font-size: 1rem;
+    }
+}

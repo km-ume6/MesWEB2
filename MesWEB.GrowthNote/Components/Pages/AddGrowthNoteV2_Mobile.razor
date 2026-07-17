@@ -1,0 +1,963 @@
+@page "/growth-note-v2/add/android"
+@rendermode InteractiveServer
+
+@using MesWEB.Shared.Data
+@using MesWEB.Shared.Services
+@using System.Text.Json
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@using System.Text
+@using Microsoft.AspNetCore.Hosting
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject Microsoft.Extensions.Logging.ILogger<AddGrowthNoteV2_Mobile> Logger
+@inject DeviceDetectionService DeviceService
+@inject IJSRuntime JS
+@inject IWebHostEnvironment HostEnvironment
+
+<PageTitle>新規レコード（Android版）</PageTitle>
+
+<style>
+    /* モバイル最適化スタイル */
+    .mobile-form {
+        max-width: 100%;
+        padding: 10px;
+    }
+
+    .mobile-form-group {
+        margin-bottom: 15px;
+    }
+
+    .mobile-form-label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 5px;
+        color: #333;
+    }
+
+    .mobile-form-control {
+        width: 100%;
+        padding: 10px;
+        font-size: 16px; /* iOSのズーム防止 */
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .mobile-form-control:focus {
+        border-color: #0d6efd;
+        outline: none;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+
+    .mobile-btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .mobile-btn-primary {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    .mobile-btn-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    .mobile-btn:active {
+        opacity: 0.8;
+    }
+
+    .mobile-section {
+        background-color: #f8f9fa;
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .mobile-section-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #0d6efd;
+        margin-bottom: 10px;
+    }
+
+    .numeric-input {
+        text-align: right;
+    }
+
+    .mobile-symbol-container {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+
+    .mobile-symbol-btn {
+        min-width: 40px;
+        padding: 8px;
+        font-size: 0.9rem;
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .mobile-symbol-btn:active {
+        background-color: #5a6268;
+    }
+
+    textarea.mobile-form-control {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    .mobile-sticky-buttons {
+        position: sticky;
+        top: 0;
+        background-color: white;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 1000;
+        margin: -10px -10px 10px -10px;
+    }
+</style>
+
+<div class="mobile-form">
+    <div class="mobile-sticky-buttons">
+        <button type="button" class="mobile-btn mobile-btn-primary" @onclick="HandleSubmit">
+            <i class="fas fa-save me-2"></i>保存
+        </button>
+        <button type="button" class="mobile-btn mobile-btn-secondary" @onclick="Cancel">
+            <i class="fas fa-times me-2"></i>キャンセル
+        </button>
+    </div>
+
+    <h3 style="margin-bottom: 20px;">新規レコード（Android版）</h3>
+
+    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+        <!-- 基本情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">基本情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">結晶育成日</label>
+                <input type="date" @bind="newItem.CrystalGrowthDate" class="mobile-form-control" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">担当者</label>
+                <input type="text" @bind="newItem.Operator" class="mobile-form-control" list="operators" />
+                <datalist id="operators">
+                    @foreach (var operatorName in existingOperators)
+                    {
+                        <option value="@operatorName">@operatorName</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">装置名</label>
+                <input type="text" @bind="newItem.MachineName" @bind:after="OnMachineNameChanged" class="mobile-form-control" list="machines" />
+                <datalist id="machines">
+                    @foreach (var machine in existingMachines)
+                    {
+                        <option value="@machine">@machine</option>
+                    }
+                </datalist>
+            </div>
+        </div>
+
+        <!-- 添加情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">添加情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">添加元素</label>
+                <input type="text" @bind="newItem.Dopants" class="mobile-form-control" list="dopants" />
+                <datalist id="dopants">
+                    @foreach (var dopant in existingDopants)
+                    {
+                        <option value="@dopant">@dopant</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">添加量</label>
+                <input type="number" step="0.01" @bind="newItem.DopantAmount" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">添加濃度(ppm)</label>
+                <input type="number" @bind="newItem.ppm" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- ロット情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">ロット情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">結晶ロット</label>
+                <input type="text" @bind="newItem.CrystalLot" class="mobile-form-control" list="crystallots" />
+                <datalist id="crystallots">
+                    @foreach (var lot in existingCrystalLots)
+                    {
+                        <option value="@lot">@lot</option>
+                    }
+                </datalist>
+            </div>
+        </div>
+
+        <!-- ペレット情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">ペレット情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレット投入量</label>
+                <div class="mobile-symbol-container">
+                    <input type="number" @bind="newItem.PelletFeed" class="mobile-form-control numeric-input" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick="CalculatePelletSum" title="ペレット①～③の合計をセット">SUM</button>
+                </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレットロット①</label>
+                <input type="text" @bind="newItem.PelletLot1" class="mobile-form-control" list="pelletlots" />
+                <datalist id="pelletlots">
+                    @foreach (var lot in existingPelletLots)
+                    {
+                        <option value="@lot">@lot</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレット①投入量</label>
+                <input type="number" @bind="newItem.Pellet1Feed" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレットロット②</label>
+                <input type="text" @bind="newItem.PelletLot2" class="mobile-form-control" list="pelletlots" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレット②投入量</label>
+                <input type="number" @bind="newItem.Pellet2Feed" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレットロット③</label>
+                <input type="text" @bind="newItem.PelletLot3" class="mobile-form-control" list="pelletlots" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ペレット③投入量</label>
+                <input type="number" @bind="newItem.Pellet3Feed" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- カレット情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">カレット情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレット投入量</label>
+                <div class="mobile-symbol-container">
+                    <input type="number" @bind="newItem.CulletFeed" class="mobile-form-control numeric-input" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick="CalculateCulletSum" title="カレット①～③の合計をセット">SUM</button>
+                </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレットロット①</label>
+                <input type="text" @bind="newItem.CulletLot1" class="mobile-form-control" list="culletlots" />
+                <datalist id="culletlots">
+                    @foreach (var lot in existingCulletLots)
+                    {
+                        <option value="@lot">@lot</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレット①投入量</label>
+                <input type="number" @bind="newItem.Cullet1Feed" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレットロット②</label>
+                <input type="text" @bind="newItem.CulletLot2" class="mobile-form-control" list="culletlots" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレット②投入量</label>
+                <input type="number" @bind="newItem.Cullet2Feed" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレットロット③</label>
+                <input type="text" @bind="newItem.CulletLot3" class="mobile-form-control" list="culletlots" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">カレット③投入量</label>
+                <input type="number" @bind="newItem.Cullet3Feed" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- 坩堝情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">坩堝情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">坩堝番号</label>
+                <input type="text" @bind="newItem.CrucibleName" class="mobile-form-control" list="crucibles" />
+                <datalist id="crucibles">
+                    @foreach (var crucible in existingCrucibles)
+                    {
+                        <option value="@crucible">@crucible</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">坩堝使用回数</label>
+                <input type="number" @bind="newItem.CrucibleCount" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- パラメータ情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">パラメータ</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">引上げ時間（⊿ｔ）</label>
+                <input type="number" @bind="newItem.Parameters!.DeltaT" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">育成開始時刻 (HH:MM)</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="growthStartTimeStr" class="mobile-form-control" placeholder="12:34" @ref="growthStartTimeInput" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick="() => OnTimeColonClicked(growthStartTimeInput, v => growthStartTimeStr = v)">:</button>
+                </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">肩育成終了時刻 (HH:MM)</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="shoulderEndTimeStr" class="mobile-form-control" placeholder="12:34" @ref="shoulderEndTimeInput" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick="() => OnTimeColonClicked(shoulderEndTimeInput, v => shoulderEndTimeStr = v)">:</button>
+                </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ネッキング時電源出力</label>
+                <input type="number" step="0.01" @bind="newItem.Parameters!.NeckingVoltage" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">育成時電源出力</label>
+                <input type="number" step="0.01" @bind="newItem.Parameters!.GrowthVoltage" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">シード位置</label>
+                <input type="number" step="0.01" @bind="newItem.Parameters!.SeedHeightPosition" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">初期引上げ速度</label>
+                <input type="text" @bind="StartPullingSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">肩育成引上げ速度</label>
+                <input type="text" @bind="ShoulderEndPullingSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">直胴部引上げ速度</label>
+                <input type="text" @bind="LastPullingSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">初期シード回転数</label>
+                <input type="text" @bind="FirstRotationalSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">肩育成シード回転数</label>
+                <input type="text" @bind="ShoulderEndRotationalSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">直胴部シード回転数</label>
+                <input type="text" @bind="LastRotationalSpeedText" inputmode="decimal" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ワークコイル重心位置</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="newItem.Parameters!.GravityCenterWC" class="mobile-form-control" list="gravitycenter" @ref="gravityCenterInput" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(gravityCenterInput, v => newItem.Parameters!.GravityCenterWC = v, "±")'>±</button>
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(gravityCenterInput, v => newItem.Parameters!.GravityCenterWC = v, ".")'>.</button>
+                </div>
+                <datalist id="gravitycenter">
+                    @foreach (var gc in existingGravityCenters)
+                    {
+                        <option value="@gc">@gc</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">育成時ワークコイル位置</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="newItem.Parameters!.HeightPositionWC" class="mobile-form-control" list="heightposition" @ref="heightPositionWCInput" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(heightPositionWCInput, v => newItem.Parameters!.HeightPositionWC = v, "±")'>±</button>
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(heightPositionWCInput, v => newItem.Parameters!.HeightPositionWC = v, ".")'>.</button>
+                </div>
+                <datalist id="heightposition">
+                    @foreach (var hp in existingHeightPositions)
+                    {
+                        <option value="@hp">@hp</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">リング高さ</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="newItem.Parameters!.RingHeightPosition" class="mobile-form-control" list="ringpositions" @ref="ringHeightInput" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(ringHeightInput, v => newItem.Parameters!.RingHeightPosition = v, "±")'>±</button>
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(ringHeightInput, v => newItem.Parameters!.RingHeightPosition = v, ".")'>.</button>
+                </div>
+                <datalist id="ringpositions">
+                    @foreach (var pos in existingRingPositions)
+                    {
+                        <option value="@pos">@pos</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">電源出力電圧</label>
+                <input type="number" @bind="newItem.Parameters!.OutputVoltage" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">電源出力電流</label>
+                <input type="number" @bind="newItem.Parameters!.OutputCurrent" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- 断熱材情報 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">断熱材情報</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">坩堝内カオウール</label>
+                <input type="text" @bind="newItem.Insulation!.InsideInsulationComposition" class="mobile-form-control" list="insideinsulation" />
+                <datalist id="insideinsulation">
+                    @foreach (var comp in existingInsideInsulation)
+                    {
+                        <option value="@comp">@comp</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">坩堝底カオウール</label>
+                <input type="text" @bind="newItem.Insulation!.BottomInsulationComposition" class="mobile-form-control" list="bottominsulation" />
+                <datalist id="bottominsulation">
+                    @foreach (var comp in existingBottomInsulation)
+                    {
+                        <option value="@comp">@comp</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">炉組条件①</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="newItem.Insulation!.FurnaceCondition1" class="mobile-form-control" list="furnaceconditions" @ref="furnaceCondition1Input" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(furnaceCondition1Input, v => newItem.Insulation!.FurnaceCondition1 = v, "±")'>±</button>
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(furnaceCondition1Input, v => newItem.Insulation!.FurnaceCondition1 = v, "/")'>/ </button>
+                </div>
+                <datalist id="furnaceconditions">
+                    @foreach (var condition in existingFurnaceConditions)
+                    {
+                        <option value="@condition">@condition</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">炉組条件②</label>
+                <div class="mobile-symbol-container">
+                    <input type="text" @bind="newItem.Insulation!.FurnaceCondition2" class="mobile-form-control" list="furnaceconditions" @ref="furnaceCondition2Input" style="flex:1;" />
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(furnaceCondition2Input, v => newItem.Insulation!.FurnaceCondition2 = v, "±")'>±</button>
+                    <button type="button" class="mobile-symbol-btn" @onclick='() => InsertSymbolManual(furnaceCondition2Input, v => newItem.Insulation!.FurnaceCondition2 = v, "/")'>/ </button>
+                </div>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">ジルコニア円板</label>
+                <input type="text" @bind="newItem.Insulation!.UsingDisk" class="mobile-form-control" list="disks" />
+                <datalist id="disks">
+                    @foreach (var disk in existingDisks)
+                    {
+                        <option value="@disk">@disk</option>
+                    }
+                </datalist>
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">液面高さ</label>
+                <input type="text" @bind="newItem.Insulation!.LiquidLevel" class="mobile-form-control" list="liquidlevels" />
+                <datalist id="liquidlevels">
+                    @foreach (var level in existingLiquidLevels)
+                    {
+                        <option value="@level">@level</option>
+                    }
+                </datalist>
+            </div>
+        </div>
+
+        <!-- 結晶寸法 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">結晶寸法</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">結晶ヘッド径</label>
+                <input type="number" @bind="newItem.HeadDiameter" class="mobile-form-control numeric-input" />
+            </div>
+
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">結晶テール径</label>
+                <input type="number" @bind="newItem.TailDiameter" class="mobile-form-control numeric-input" />
+            </div>
+        </div>
+
+        <!-- 備考 -->
+        <div class="mobile-section">
+            <div class="mobile-section-title">備考</div>
+            
+            <div class="mobile-form-group">
+                <label class="mobile-form-label">備考</label>
+                <textarea @bind="newItem.Remarks" class="mobile-form-control" rows="4"></textarea>
+            </div>
+        </div>
+
+        <button type="submit" class="mobile-btn mobile-btn-primary">
+            <i class="fas fa-save me-2"></i>保存
+        </button>
+        <button type="button" class="mobile-btn mobile-btn-secondary" @onclick="Cancel">
+            <i class="fas fa-times me-2"></i>キャンセル
+        </button>
+    </form>
+</div>
+
+@code {
+    private GrowthNoteItem newItem = new()
+    {
+        CrystalGrowthDate = DateTime.Today,
+        Parameters = new GrowthNoteParameters(),
+        Insulation = new GrowthNoteInsulation()
+    };
+    private string? growthStartTimeStr;
+    private string? shoulderEndTimeStr;
+
+    private const string SettingsDirectoryName = "App_Data";
+    private const string SettingsFileName = "code-playground-settings.json";
+    private const int ImportSettingCount = 6;
+    private readonly int[] importDecimalPositions = new int[ImportSettingCount];
+
+    // 既存データのリスト
+    private List<string> existingOperators = new();
+    private List<string> existingMachines = new();
+    private List<string> existingDopants = new();
+    private List<string> existingCrystalLots = new();
+    private List<string> existingPelletLots = new();
+    private List<string> existingCulletLots = new();
+    private List<string> existingCrucibles = new();
+    private List<string> existingInsideInsulation = new();
+    private List<string> existingBottomInsulation = new();
+    private List<string> existingFurnaceConditions = new();
+    private List<string> existingRingPositions = new();
+    private List<string> existingDisks = new();
+    private List<string> existingGravityCenters = new();
+    private List<string> existingHeightPositions = new();
+    private List<string> existingLiquidLevels = new();
+
+    private ElementReference ringHeightInput;
+    private ElementReference gravityCenterInput;
+    private ElementReference furnaceCondition1Input;
+    private ElementReference furnaceCondition2Input;
+    private ElementReference heightPositionWCInput;
+    private ElementReference growthStartTimeInput;
+    private ElementReference shoulderEndTimeInput;
+
+    private Task OnTimeColonClicked(ElementReference inputRef, Action<string> setValue)
+        => InsertSymbol(inputRef, setValue, new ChangeEventArgs { Value = ":" });
+
+    private async Task InsertSymbolManual(ElementReference inputRef, Action<string> setValue, string symbol)
+    {
+        await InsertSymbol(inputRef, setValue, new ChangeEventArgs { Value = symbol });
+    }
+
+    private async Task InsertSymbol(ElementReference inputRef, Action<string> setValue, ChangeEventArgs e)
+    {
+        var symbol = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(symbol))
+        {
+            await JS.InvokeVoidAsync("insertAtCursorAndFocus", inputRef, symbol);
+            var value = await JS.InvokeAsync<string>("getInputValue", inputRef);
+            setValue(value);
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExistingData();
+        await LoadDecimalPositionsByMachineName(newItem.MachineName);
+    }
+
+    private Task OnMachineNameChanged()
+        => LoadDecimalPositionsByMachineName(newItem.MachineName);
+
+    private async Task LoadExistingData()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        var allNotes = await db.GrowthNotes
+            .Include(n => n.Parameters)
+            .Include(n => n.Insulation)
+            .ToListAsync();
+
+        existingOperators = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.Operator))
+            .Select(n => n.Operator!).Distinct().OrderBy(x => x).ToList();
+
+        existingMachines = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.MachineName))
+            .Select(n => n.MachineName!).Distinct().OrderBy(x => x).ToList();
+
+        existingDopants = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.Dopants))
+            .Select(n => n.Dopants!).Distinct().OrderBy(x => x).ToList();
+
+        existingCrystalLots = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.CrystalLot))
+            .Select(n => n.CrystalLot!).Distinct().OrderBy(x => x).ToList();
+
+        existingPelletLots = allNotes.SelectMany(n => new[] { n.PelletLot1, n.PelletLot2, n.PelletLot3 })
+            .Where(lot => !string.IsNullOrWhiteSpace(lot)).Select(lot => lot!).Distinct().OrderBy(x => x).ToList();
+
+        existingCulletLots = allNotes.SelectMany(n => new[] { n.CulletLot1, n.CulletLot2, n.CulletLot3 })
+            .Where(lot => !string.IsNullOrWhiteSpace(lot)).Select(lot => lot!).Distinct().OrderBy(x => x).ToList();
+
+        existingCrucibles = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.CrucibleName))
+            .Select(n => n.CrucibleName!).Distinct().OrderBy(x => x).ToList();
+
+        existingInsideInsulation = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.InsideInsulationComposition))
+            .Select(n => n.Insulation!.InsideInsulationComposition!).Distinct().OrderBy(x => x).ToList();
+
+        existingBottomInsulation = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.BottomInsulationComposition))
+            .Select(n => n.Insulation!.BottomInsulationComposition!).Distinct().OrderBy(x => x).ToList();
+
+        existingFurnaceConditions = allNotes
+            .Where(n => n.Insulation != null)
+            .SelectMany(n => new[] { n.Insulation!.FurnaceCondition1, n.Insulation.FurnaceCondition2 })
+            .Where(cond => !string.IsNullOrWhiteSpace(cond)).Select(cond => cond!).Distinct().OrderBy(x => x).ToList();
+
+        existingRingPositions = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.RingHeightPosition))
+            .Select(n => n.Parameters!.RingHeightPosition!).Distinct().OrderBy(x => x).ToList();
+
+        existingDisks = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.UsingDisk))
+            .Select(n => n.Insulation!.UsingDisk!).Distinct().OrderBy(x => x).ToList();
+
+        existingGravityCenters = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.GravityCenterWC))
+            .Select(n => n.Parameters!.GravityCenterWC!).Distinct().OrderBy(x => x).ToList();
+
+        existingHeightPositions = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.HeightPositionWC))
+            .Select(n => n.Parameters!.HeightPositionWC!).Distinct().OrderBy(x => x).ToList();
+
+        existingLiquidLevels = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.LiquidLevel))
+            .Select(n => n.Insulation!.LiquidLevel!).Distinct().OrderBy(x => x).ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        // HH:MM形式で時間を解析（秒は00で固定）
+        if (!string.IsNullOrWhiteSpace(growthStartTimeStr))
+        {
+            if (TimeSpan.TryParseExact(growthStartTimeStr, @"hh\:mm", null, out var gts))
+            {
+                newItem.Parameters!.GrowthStartTime = gts;
+            }
+            else if (TimeSpan.TryParseExact(growthStartTimeStr, @"h\:mm", null, out var gts2))
+            {
+                newItem.Parameters!.GrowthStartTime = gts2;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(shoulderEndTimeStr))
+        {
+            if (TimeSpan.TryParseExact(shoulderEndTimeStr, @"hh\:mm", null, out var sets))
+            {
+                newItem.Parameters!.ShoulderEndTime = sets;
+            }
+            else if (TimeSpan.TryParseExact(shoulderEndTimeStr, @"h\:mm", null, out var sets2))
+            {
+                newItem.Parameters!.ShoulderEndTime = sets2;
+            }
+        }
+
+        newItem.CreatedAt = DateTime.UtcNow;
+        try
+        {
+            Logger.LogInformation("Saving GrowthNote (Mobile): {item}", JsonSerializer.Serialize(newItem));
+        }
+        catch { }
+
+        using (var db = DbFactory.CreateDbContext())
+        {
+            db.GrowthNotes.Add(newItem);
+            await db.SaveChangesAsync();
+
+            try
+            {
+                var saved = await db.GrowthNotes.AsNoTracking()
+                    .Include(n => n.Parameters)
+                    .Include(n => n.Insulation)
+                    .FirstOrDefaultAsync(n => n.CGNoteId == newItem.CGNoteId);
+                Logger.LogInformation("Saved from DB (Mobile): {item}", JsonSerializer.Serialize(saved));
+            }
+            catch { }
+        }
+
+        Navigation.NavigateTo("/growth-note-v2");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("growth-note-v2");
+    }
+
+    private void CalculatePelletSum()
+    {
+        int sum = (newItem.Pellet1Feed ?? 0) + (newItem.Pellet2Feed ?? 0) + (newItem.Pellet3Feed ?? 0);
+        newItem.PelletFeed = sum;
+    }
+
+    private void CalculateCulletSum()
+    {
+        int sum = (newItem.Cullet1Feed ?? 0) + (newItem.Cullet2Feed ?? 0) + (newItem.Cullet3Feed ?? 0);
+        newItem.CulletFeed = sum;
+    }
+
+    private async Task LoadDecimalPositionsByMachineName(string? machineName)
+    {
+        var normalizedMachineName = NormalizeFileName(machineName);
+        if (string.IsNullOrWhiteSpace(normalizedMachineName))
+        {
+            Array.Fill(importDecimalPositions, 0);
+            return;
+        }
+
+        var store = await ReadSettingsStoreAsync();
+        var savedSetting = FindSettingByMachineName(store, normalizedMachineName);
+        var settings = NormalizeColumnSettings(savedSetting?.ColumnSettings);
+
+        for (var i = 0; i < ImportSettingCount; i++)
+        {
+            importDecimalPositions[i] = Math.Max(0, settings[i].DecimalPosition);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task<SettingsStore> ReadSettingsStoreAsync()
+    {
+        var settingsPath = GetSettingsFilePath();
+        if (!File.Exists(settingsPath))
+        {
+            return new SettingsStore();
+        }
+
+        await using var stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        var store = await JsonSerializer.DeserializeAsync<SettingsStore>(stream) ?? new SettingsStore();
+
+        foreach (var item in store.Files)
+        {
+            item.FileName = NormalizeFileName(item.FileName);
+            item.ColumnSettings = NormalizeColumnSettings(item.ColumnSettings);
+        }
+
+        return store;
+    }
+
+    private string GetSettingsFilePath()
+    {
+        var primary = Path.Combine(HostEnvironment.ContentRootPath, SettingsDirectoryName, SettingsFileName);
+        if (File.Exists(primary))
+        {
+            return primary;
+        }
+
+        var parent = Directory.GetParent(HostEnvironment.ContentRootPath)?.FullName;
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            var sibling = Path.Combine(parent, "MesWEB", SettingsDirectoryName, SettingsFileName);
+            if (File.Exists(sibling))
+            {
+                return sibling;
+            }
+        }
+
+        return primary;
+    }
+
+    private static SavedFileSetting? FindSettingByMachineName(SettingsStore store, string machineName)
+    {
+        if (store.Files.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedMachineName = NormalizeFileName(machineName);
+        if (string.IsNullOrWhiteSpace(normalizedMachineName))
+        {
+            return null;
+        }
+
+        var candidates = new List<string> { normalizedMachineName };
+        if (!normalizedMachineName.Contains('.'))
+        {
+            candidates.Add($"{normalizedMachineName}.CSV");
+        }
+
+        return store.Files.FirstOrDefault(x =>
+            candidates.Any(c => string.Equals(NormalizeFileName(x.FileName), c, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static List<ColumnSetting> NormalizeColumnSettings(IEnumerable<ColumnSetting>? source)
+    {
+        var normalized = source?
+            .Take(ImportSettingCount)
+            .Select(x => new ColumnSetting
+            {
+                ColumnNumber = x.ColumnNumber > 0 ? x.ColumnNumber : 1,
+                DecimalPosition = x.DecimalPosition >= 0 ? x.DecimalPosition : 0
+            })
+            .ToList() ?? [];
+
+        while (normalized.Count < ImportSettingCount)
+        {
+            normalized.Add(new ColumnSetting { ColumnNumber = normalized.Count + 1, DecimalPosition = 0 });
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeFileName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return string.Empty;
+        }
+
+        return Path.GetFileName(fileName.Trim());
+    }
+
+    private string FormatImportedValue(float? value, int settingIndex)
+    {
+        if (!value.HasValue)
+        {
+            return string.Empty;
+        }
+
+        var digits = settingIndex >= 0 && settingIndex < importDecimalPositions.Length
+            ? Math.Clamp(importDecimalPositions[settingIndex], 0, 6)
+            : 0;
+
+        return value.Value.ToString($"F{digits}", CultureInfo.InvariantCulture);
+    }
+
+    private static float? ParseDotDecimalOrNull(string? text)
+    {
+        var value = text?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private string StartPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.StartPullingSpeed, 0);
+        set => newItem.Parameters!.StartPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string ShoulderEndPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.ShoulderEndPullingSpeed, 1);
+        set => newItem.Parameters!.ShoulderEndPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string LastPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.LastPullingSpeed, 2);
+        set => newItem.Parameters!.LastPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string FirstRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.FirstRotationalSpeed, 3);
+        set => newItem.Parameters!.FirstRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string ShoulderEndRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.ShoulderEndRotationalSpeed, 4);
+        set => newItem.Parameters!.ShoulderEndRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string LastRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.LastRotationalSpeed, 5);
+        set => newItem.Parameters!.LastRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private sealed class SettingsStore
+    {
+        public List<SavedFileSetting> Files { get; set; } = [];
+    }
+
+    private sealed class SavedFileSetting
+    {
+        public string FileName { get; set; } = string.Empty;
+        public List<ColumnSetting> ColumnSettings { get; set; } = [];
+    }
+
+    private sealed class ColumnSetting
+    {
+        public int ColumnNumber { get; set; }
+        public int DecimalPosition { get; set; }
+    }
+}

@@ -1,0 +1,83 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<!-- ハンバーガーメニューボタン（スマホのみ表示） -->
+<button class="hamburger-menu" @onclick="ToggleNav" aria-label="メニュー">
+    <i class="fas @(isNavOpen ? "fa-times" : "fa-bars")"></i>
+</button>
+
+<!-- オーバーレイ（スマホでメニュー開いた時） -->
+@if (isNavOpen)
+{
+    <div class="nav-overlay" @onclick="CloseNav"></div>
+}
+
+<aside class="nav-pane @(isNavOpen ? "open" : "")">
+    <div class="nav-header">
+        <span class="header-short">生技</span>
+        <span class="header-full">生産技術</span>
+    </div>
+    <nav class="nav-links">
+        <NavLink href="" Match="NavLinkMatch.All" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-home"></i></span>
+            <span class="link-text">ホーム</span>
+        </NavLink>
+        <NavLink href="growth-note-v2" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-seedling"></i></span>
+            <span class="link-text">育成ノート</span>
+        </NavLink>
+        <NavLink href="excel-compare" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-file-excel"></i></span>
+            <span class="link-text">Excel比較</span>
+        </NavLink>
+        <NavLink href="cell-mapping/templates" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-table"></i></span>
+            <span class="link-text">マッピング</span>
+        </NavLink>
+        <NavLink href="code-playground" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-flask"></i></span>
+            <span class="link-text">コード実験</span>
+        </NavLink>
+        <NavLink href="terminology" class="nav-link" @onclick="OnNavLinkClick">
+            <span class="icon-wrapper"><i class="fas fa-book"></i></span>
+            <span class="link-text">用語集</span>
+        </NavLink>
+    </nav>
+</aside>
+
+@code {
+    private bool isNavOpen = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("navigation.setupResponsiveNav");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"NavigationMenu: Failed to setup responsive nav: {ex.Message}");
+            }
+        }
+    }
+
+    private void ToggleNav()
+    {
+        isNavOpen = !isNavOpen;
+    }
+
+    private void CloseNav()
+    {
+        isNavOpen = false;
+    }
+
+    private void OnNavLinkClick()
+    {
+        if (isNavOpen)
+        {
+            isNavOpen = false;
+        }
+    }
+}

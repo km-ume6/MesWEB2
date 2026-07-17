@@ -1,0 +1,1067 @@
+@page "/growth-note-v2/add"
+@rendermode InteractiveServer
+
+@using MesWEB.Shared.Data
+@using MesWEB.Shared.Services
+@using System.Text.Json
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@using System.Text
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.VisualBasic.FileIO
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject Microsoft.Extensions.Logging.ILogger<AddGrowthNoteV2> Logger
+@inject DeviceDetectionService DeviceService
+@inject IJSRuntime JS
+@inject IWebHostEnvironment HostEnvironment
+
+<PageTitle>新規レコード（正規化版）</PageTitle>
+
+<style>
+    /* 入力フィールドの配置設定 */
+    .form-control.text-input {
+        text-align: left !important;
+    }
+
+    .form-control.numeric-input {
+        text-align: right !important;
+    }
+
+    .form-control.date-input {
+        text-align: center !important;
+    }
+
+    /* ラベルの配置設定 */
+    .add-form-table td:first-child {
+        text-align: left !important;
+        vertical-align: middle;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        width: 200px;
+    }
+
+    .add-form-table td:nth-child(3) {
+        text-align: left !important;
+        vertical-align: middle;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        width: 200px;
+    }
+
+    .add-form-table {
+        width: 100%;
+        max-width: 1200px;
+    }
+
+    .floating-toolbar {
+        position: fixed;
+        right: 2rem;
+        bottom: 2rem;
+        z-index: 1000;
+    }
+
+    .floating-toolbar .btn-group-vertical {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-radius: 25px;
+    }
+
+    .floating-toolbar .btn {
+        border-radius: 0;
+        min-width: 170px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        padding: 0 1rem;
+        border: none;
+        transition: all 0.2s ease;
+    }
+
+    .floating-toolbar .btn:first-child {
+        border-radius: 25px 25px 0 0;
+    }
+
+    .floating-toolbar .btn:last-child {
+        border-radius: 0 0 25px 25px;
+    }
+
+    .floating-toolbar .btn:hover {
+        transform: translateX(-4px);
+    }
+
+    .floating-toolbar .btn i {
+        font-size: 1.1rem;
+    }
+
+    .floating-message {
+        position: fixed;
+        right: 13.5rem;
+        bottom: 2rem;
+        z-index: 1000;
+        min-width: 320px;
+        max-width: 520px;
+        margin: 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    @@media (max-width: 768px) {
+        .floating-toolbar {
+            right: 1rem;
+            bottom: 1rem;
+        }
+
+        .floating-toolbar .btn {
+            min-width: 150px;
+        }
+
+        .floating-message {
+            right: 1rem;
+            left: 1rem;
+            bottom: 165px;
+            min-width: auto;
+            max-width: none;
+        }
+    }
+
+    form {
+        padding-bottom: 130px;
+    }
+</style>
+
+<h3>新規レコード（正規化版）</h3>
+
+<form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+    @if (!string.IsNullOrWhiteSpace(importErrorMessage))
+    {
+        <div class="alert alert-danger">@importErrorMessage</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(importStatusMessage))
+    {
+        <div class="alert alert-success">@importStatusMessage</div>
+    }
+
+    <table class="table table-bordered add-form-table">
+        <tbody>
+            <tr>
+                <td><label>結晶育成日</label></td>
+                <td><input type="date" @bind="newItem.CrystalGrowthDate" class="form-control date-input" /></td>
+                <td><label>担当者</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Operator" class="form-control text-input" list="operators" />
+                    <datalist id="operators">
+                        @foreach (var operatorName in existingOperators)
+                        {
+                            <option value="@operatorName">@operatorName</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>装置名</label></td>
+                <td>
+                    <input type="text" @bind="newItem.MachineName" class="form-control text-input" list="machines" />
+                    <datalist id="machines">
+                        @foreach (var machine in existingMachines)
+                        {
+                            <option value="@machine">@machine</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>添加元素</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Dopants" class="form-control text-input" list="dopants" />
+                    <datalist id="dopants">
+                        @foreach (var dopant in existingDopants)
+                        {
+                            <option value="@dopant">@dopant</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>添加量</label></td>
+                <td><input type="number" step="0.01" @bind="newItem.DopantAmount" class="form-control numeric-input" /></td>
+                <td><label>添加濃度(ppm)</label></td>
+                <td><input type="number" @bind="newItem.ppm" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>結晶ロット</label></td>
+                <td>
+                    <input type="text" @bind="newItem.CrystalLot" class="form-control text-input" list="crystallots" />
+                    <datalist id="crystallots">
+                        @foreach (var lot in existingCrystalLots)
+                        {
+                            <option value="@lot">@lot</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>ペレット投入量</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="number" @bind="newItem.PelletFeed" class="form-control numeric-input" style="flex:1;" />
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="CalculatePelletSum" title="ペレット①～③の合計をセット">SUM</button>
+                </td>
+            </tr>
+            <tr>
+                <td><label>ペレットロット①</label></td>
+                <td>
+                    <input type="text" @bind="newItem.PelletLot1" class="form-control text-input" list="pelletlots" />
+                    <datalist id="pelletlots">
+                        @foreach (var lot in existingPelletLots)
+                        {
+                            <option value="@lot">@lot</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>ペレット①投入量</label></td>
+                <td><input type="number" @bind="newItem.Pellet1Feed" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>ペレットロット②</label></td>
+                <td>
+                    <input type="text" @bind="newItem.PelletLot2" class="form-control text-input" list="pelletlots" />
+                </td>
+                <td><label>ペレット②投入量</label></td>
+                <td><input type="number" @bind="newItem.Pellet2Feed" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>ペレットロット③</label></td>
+                <td>
+                    <input type="text" @bind="newItem.PelletLot3" class="form-control text-input" list="pelletlots" />
+                </td>
+                <td><label>ペレット③投入量</label></td>
+                <td><input type="number" @bind="newItem.Pellet3Feed" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>カレット投入量</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="number" @bind="newItem.CulletFeed" class="form-control numeric-input" style="flex:1;" />
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="CalculateCulletSum" title="カレット①～③の合計をセット">SUM</button>
+                </td>
+                <td><label>カレットロット①</label></td>
+                <td>
+                    <input type="text" @bind="newItem.CulletLot1" class="form-control text-input" list="culletlots" />
+                    <datalist id="culletlots">
+                        @foreach (var lot in existingCulletLots)
+                        {
+                            <option value="@lot">@lot</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>カレット①投入量</label></td>
+                <td><input type="number" @bind="newItem.Cullet1Feed" class="form-control numeric-input" /></td>
+                <td><label>カレットロット②</label></td>
+                <td>
+                    <input type="text" @bind="newItem.CulletLot2" class="form-control text-input" list="culletlots" />
+                </td>
+            </tr>
+            <tr>
+                <td><label>カレット②投入量</label></td>
+                <td><input type="number" @bind="newItem.Cullet2Feed" class="form-control numeric-input" /></td>
+                <td><label>カレットロット③</label></td>
+                <td>
+                    <input type="text" @bind="newItem.CulletLot3" class="form-control text-input" list="culletlots" />
+                </td>
+            </tr>
+            <tr>
+                <td><label>カレット③投入量</label></td>
+                <td><input type="number" @bind="newItem.Cullet3Feed" class="form-control numeric-input" /></td>
+                <td><label>坩堝番号</label></td>
+                <td>
+                    <input type="text" @bind="newItem.CrucibleName" class="form-control text-input" list="crucibles" />
+                    <datalist id="crucibles">
+                        @foreach (var crucible in existingCrucibles)
+                        {
+                            <option value="@crucible">@crucible</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>坩堝使用回数</label></td>
+                <td><input type="number" @bind="newItem.CrucibleCount" class="form-control numeric-input" /></td>
+                <td><label>引上げ時間（⊿ｔ）</label></td>
+                <td><input type="number" @bind="newItem.Parameters!.DeltaT" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>坩堝内カオウール</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Insulation!.InsideInsulationComposition" class="form-control text-input" list="insideinsulation" />
+                    <datalist id="insideinsulation">
+                        @foreach (var comp in existingInsideInsulation)
+                        {
+                            <option value="@comp">@comp</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>坩堝底カオウール</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Insulation!.BottomInsulationComposition" class="form-control text-input" list="bottominsulation" />
+                    <datalist id="bottominsulation">
+                        @foreach (var comp in existingBottomInsulation)
+                        {
+                            <option value="@comp">@comp</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>炉組条件①</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="newItem.Insulation!.FurnaceCondition1" class="form-control text-input" list="furnaceconditions" @ref="furnaceCondition1Input" />
+                    <select @onchange="OnFurnace1SymbolSelected" class="form-select" style="width:90px;">
+                        <option value="">記号</option>
+                        <option value="±">±</option>
+                        <option value=".">.</option>
+                        <option value="/">/</option>
+                    </select>
+                    <datalist id="furnaceconditions">
+                        @foreach (var condition in existingFurnaceConditions)
+                        {
+                            <option value="@condition">@condition</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>炉組条件②</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="newItem.Insulation!.FurnaceCondition2" class="form-control text-input" list="furnaceconditions" @ref="furnaceCondition2Input" />
+                    <select @onchange="OnFurnace2SymbolSelected" class="form-select" style="width:90px;">
+                        <option value="">記号</option>
+                        <option value="±">±</option>
+                        <option value=".">.</option>
+                        <option value="/">/</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td><label>リング高さ</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="newItem.Parameters!.RingHeightPosition" class="form-control text-input" list="ringpositions" @ref="ringHeightInput" />
+                    <select @onchange="OnSymbolSelected" class="form-select" style="width:90px;">
+                        <option value="">記号</option>
+                        <option value="±">±</option>
+                        <option value=".">。</option>
+                        <option value="/">/</option>
+                    </select>
+                    <datalist id="ringpositions">
+                        @foreach (var pos in existingRingPositions)
+                        {
+                            <option value="@pos">@pos</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>ジルコニア円板</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Insulation!.UsingDisk" class="form-control text-input" list="disks" />
+                    <datalist id="disks">
+                        @foreach (var disk in existingDisks)
+                        {
+                            <option value="@disk">@disk</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>育成開始時刻 (HH:MM)</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="growthStartTimeStr" class="form-control date-input" placeholder="12:34" @ref="growthStartTimeInput" />
+                    <button type="button" class="btn btn-outline-secondary" style="min-width:32px;padding:2px 8px;" @onclick="() => OnTimeColonClicked(growthStartTimeInput, v => growthStartTimeStr = v)">:</button>
+                </td>
+                <td><label>肩育成終了時刻 (HH:MM)</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="shoulderEndTimeStr" class="form-control date-input" placeholder="12:34" @ref="shoulderEndTimeInput" />
+                    <button type="button" class="btn btn-outline-secondary" style="min-width:32px;padding:2px 8px;" @onclick="() => OnTimeColonClicked(shoulderEndTimeInput, v => shoulderEndTimeStr = v)">:</button>
+                </td>
+            </tr>
+            <tr>
+                <td><label>ネッキング時電源出力</label></td>
+                <td><input type="number" step="0.01" @bind="newItem.Parameters!.NeckingVoltage" class="form-control numeric-input" /></td>
+                <td><label>育成時電源出力</label></td>
+                <td><input type="number" step="0.01" @bind="newItem.Parameters!.GrowthVoltage" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>シード位置</label></td>
+                <td><input type="number" step="0.01" @bind="newItem.Parameters!.SeedHeightPosition" class="form-control numeric-input" /></td>
+                <td><label>初期引上げ速度</label></td>
+                <td><input type="text" @bind="StartPullingSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+            </tr>
+            <tr>
+                <td><label>肩育成引上げ速度</label></td>
+                <td><input type="text" @bind="ShoulderEndPullingSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+                <td><label>直胴部引上げ速度</label></td>
+                <td><input type="text" @bind="LastPullingSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+            </tr>
+            <tr>
+                <td><label>初期シード回転数</label></td>
+                <td><input type="text" @bind="FirstRotationalSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+                <td><label>肩育成シード回転数</label></td>
+                <td><input type="text" @bind="ShoulderEndRotationalSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+            </tr>
+            <tr>
+                <td><label>直胴部シード回転数</label></td>
+                <td><input type="text" @bind="LastRotationalSpeedText" class="form-control numeric-input" inputmode="decimal" /></td>
+                <td><label>ワークコイル重心位置</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="newItem.Parameters!.GravityCenterWC" class="form-control text-input" list="gravitycenter" @ref="gravityCenterInput" />
+                    <select @onchange="OnGravitySymbolSelected" class="form-select" style="width:90px;">
+                        <option value="">記号</option>
+                        <option value="±">±</option>
+                        <option value=".">.</option>
+                        <option value="/">/</option>
+                        <option value="(">(</option>
+                        <option value=")">)</option>
+                    </select>
+                    <datalist id="gravitycenter">
+                        @foreach (var gc in existingGravityCenters)
+                        {
+                            <option value="@gc">@gc</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>育成時ワークコイル位置</label></td>
+                <td style="display:flex;align-items:center;gap:8px;">
+                    <input type="text" @bind="newItem.Parameters!.HeightPositionWC" class="form-control text-input" list="heightposition" @ref="heightPositionWCInput" />
+                    <select @onchange="OnHeightPositionSymbolSelected" class="form-select" style="width:90px;">
+                        <option value="">記号</option>
+                        <option value="±">±</option>
+                        <option value=".">.</option>
+                        <option value="/">/</option>
+                        <option value="(">(</option>
+                        <option value=")">)</option>
+                    </select>
+                    <datalist id="heightposition">
+                        @foreach (var hp in existingHeightPositions)
+                        {
+                            <option value="@hp">@hp</option>
+                        }
+                    </datalist>
+                </td>
+                <td><label>結晶ヘッド径</label></td>
+                <td><input type="number" @bind="newItem.HeadDiameter" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>結晶テール径</label></td>
+                <td><input type="number" @bind="newItem.TailDiameter" class="form-control numeric-input" /></td>
+                <td><label>電源出力電圧</label></td>
+                <td><input type="number" @bind="newItem.Parameters!.OutputVoltage" class="form-control numeric-input" /></td>
+            </tr>
+            <tr>
+                <td><label>電源出力電流</label></td>
+                <td><input type="number" @bind="newItem.Parameters!.OutputCurrent" class="form-control numeric-input" /></td>
+                <td><label>液面高さ</label></td>
+                <td>
+                    <input type="text" @bind="newItem.Insulation!.LiquidLevel" class="form-control text-input" list="liquidlevels" />
+                    <datalist id="liquidlevels">
+                        @foreach (var level in existingLiquidLevels)
+                        {
+                            <option value="@level">@level</option>
+                        }
+                    </datalist>
+                </td>
+            </tr>
+            <tr>
+                <td><label>備考</label></td>
+                <td colspan="3"><textarea @bind="newItem.Remarks" class="form-control text-input" rows="3"></textarea></td>
+            </tr>
+        </tbody>
+    </table>
+
+    @if (!string.IsNullOrWhiteSpace(importErrorMessage))
+    {
+        <div class="alert alert-danger floating-message">@importErrorMessage</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(importStatusMessage))
+    {
+        <div class="alert alert-success floating-message">@importStatusMessage</div>
+    }
+
+    <div class="floating-toolbar">
+        <div class="btn-group-vertical" role="group" aria-label="追従操作ボタン">
+            <button type="submit" class="btn btn-primary" title="保存">
+                <i class="fas fa-save"></i>
+                <span>保存</span>
+            </button>
+            <button type="button" class="btn btn-info" @onclick="ImportFromEquipment" title="装置から取得">
+                <i class="fas fa-download"></i>
+                <span>装置から取得</span>
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="Cancel" title="キャンセル">
+                <i class="fas fa-times"></i>
+                <span>キャンセル</span>
+            </button>
+        </div>
+    </div>
+</form>
+
+@code {
+    private GrowthNoteItem newItem = new()
+    {
+        CrystalGrowthDate = DateTime.Today,
+        Parameters = new GrowthNoteParameters(),
+        Insulation = new GrowthNoteInsulation()
+    };
+    private string? growthStartTimeStr;
+    private string? shoulderEndTimeStr;
+    private string? ocrText;
+    private string? importStatusMessage;
+    private string? importErrorMessage;
+
+    private const string TargetDirectoryPath = @"\\IKUSEI2026-7\ProServer$";
+    private const string SettingsDirectoryName = "App_Data";
+    private const string SettingsFileName = "code-playground-settings.json";
+    private const int ImportSettingCount = 6;
+    private static readonly Encoding FileEncoding = Encoding.GetEncoding(932);
+    private readonly int[] importDecimalPositions = new int[ImportSettingCount];
+
+    // 既存データのリスト
+    private List<string> existingOperators = new();
+    private List<string> existingMachines = new();
+    private List<string> existingDopants = new();
+    private List<string> existingCrystalLots = new();
+    private List<string> existingPelletLots = new();
+    private List<string> existingCulletLots = new();
+    private List<string> existingCrucibles = new();
+    private List<string> existingInsideInsulation = new();
+    private List<string> existingBottomInsulation = new();
+    private List<string> existingFurnaceConditions = new();
+    private List<string> existingRingPositions = new();
+    private List<string> existingDisks = new();
+    private List<string> existingGravityCenters = new();
+    private List<string> existingHeightPositions = new();
+    private List<string> existingLiquidLevels = new();
+
+    private ElementReference ringHeightInput;
+    private ElementReference gravityCenterInput;
+    private ElementReference furnaceCondition1Input;
+    private ElementReference furnaceCondition2Input;
+    private ElementReference heightPositionWCInput;
+    private ElementReference growthStartTimeInput;
+    private ElementReference shoulderEndTimeInput;
+
+    private Task OnFurnace1SymbolSelected(ChangeEventArgs e)
+        => InsertSymbol(furnaceCondition1Input, v => newItem.Insulation!.FurnaceCondition1 = v, e);
+
+    private Task OnFurnace2SymbolSelected(ChangeEventArgs e)
+        => InsertSymbol(furnaceCondition2Input, v => newItem.Insulation!.FurnaceCondition2 = v, e);
+
+    private Task OnHeightPositionSymbolSelected(ChangeEventArgs e)
+        => InsertSymbol(heightPositionWCInput, v => newItem.Parameters!.HeightPositionWC = v, e);
+
+    private Task OnTimeColonClicked(ElementReference inputRef, Action<string> setValue)
+        => InsertSymbol(inputRef, setValue, new ChangeEventArgs { Value = ":" });
+
+    private Task OnSymbolSelected(ChangeEventArgs e)
+        => InsertSymbol(ringHeightInput, v => newItem.Parameters!.RingHeightPosition = v, e);
+
+    private Task OnGravitySymbolSelected(ChangeEventArgs e)
+        => InsertSymbol(gravityCenterInput, v => newItem.Parameters!.GravityCenterWC = v, e);
+
+    private async Task InsertSymbol(ElementReference inputRef, Action<string> setValue, ChangeEventArgs e)
+    {
+        var symbol = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(symbol))
+        {
+            await JS.InvokeVoidAsync("insertAtCursorAndFocus", inputRef, symbol);
+            var value = await JS.InvokeAsync<string>("getInputValue", inputRef);
+            setValue(value);
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExistingData();
+    }
+
+    private async Task LoadExistingData()
+    {
+        using var db = DbFactory.CreateDbContext();
+
+        var allNotes = await db.GrowthNotes
+            .Include(n => n.Parameters)
+            .Include(n => n.Insulation)
+            .ToListAsync();
+
+        existingOperators = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.Operator))
+            .Select(n => n.Operator!).Distinct().OrderBy(x => x).ToList();
+
+        existingMachines = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.MachineName))
+            .Select(n => n.MachineName!).Distinct().OrderBy(x => x).ToList();
+
+        existingDopants = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.Dopants))
+            .Select(n => n.Dopants!).Distinct().OrderBy(x => x).ToList();
+
+        existingCrystalLots = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.CrystalLot))
+            .Select(n => n.CrystalLot!).Distinct().OrderBy(x => x).ToList();
+
+        existingPelletLots = allNotes.SelectMany(n => new[] { n.PelletLot1, n.PelletLot2, n.PelletLot3 })
+            .Where(lot => !string.IsNullOrWhiteSpace(lot)).Select(lot => lot!).Distinct().OrderBy(x => x).ToList();
+
+        existingCulletLots = allNotes.SelectMany(n => new[] { n.CulletLot1, n.CulletLot2, n.CulletLot3 })
+            .Where(lot => !string.IsNullOrWhiteSpace(lot)).Select(lot => lot!).Distinct().OrderBy(x => x).ToList();
+
+        existingCrucibles = allNotes.Where(n => !string.IsNullOrWhiteSpace(n.CrucibleName))
+            .Select(n => n.CrucibleName!).Distinct().OrderBy(x => x).ToList();
+
+        existingInsideInsulation = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.InsideInsulationComposition))
+            .Select(n => n.Insulation!.InsideInsulationComposition!).Distinct().OrderBy(x => x).ToList();
+
+        existingBottomInsulation = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.BottomInsulationComposition))
+            .Select(n => n.Insulation!.BottomInsulationComposition!).Distinct().OrderBy(x => x).ToList();
+
+        existingFurnaceConditions = allNotes
+            .Where(n => n.Insulation != null)
+            .SelectMany(n => new[] { n.Insulation!.FurnaceCondition1, n.Insulation.FurnaceCondition2 })
+            .Where(cond => !string.IsNullOrWhiteSpace(cond)).Select(cond => cond!).Distinct().OrderBy(x => x).ToList();
+
+        existingRingPositions = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.RingHeightPosition))
+            .Select(n => n.Parameters!.RingHeightPosition!).Distinct().OrderBy(x => x).ToList();
+
+        existingDisks = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.UsingDisk))
+            .Select(n => n.Insulation!.UsingDisk!).Distinct().OrderBy(x => x).ToList();
+
+        existingGravityCenters = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.GravityCenterWC))
+            .Select(n => n.Parameters!.GravityCenterWC!).Distinct().OrderBy(x => x).ToList();
+
+        existingHeightPositions = allNotes.Where(n => n.Parameters != null && !string.IsNullOrWhiteSpace(n.Parameters.HeightPositionWC))
+            .Select(n => n.Parameters!.HeightPositionWC!).Distinct().OrderBy(x => x).ToList();
+
+        existingLiquidLevels = allNotes.Where(n => n.Insulation != null && !string.IsNullOrWhiteSpace(n.Insulation.LiquidLevel))
+            .Select(n => n.Insulation!.LiquidLevel!).Distinct().OrderBy(x => x).ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        // HH:MM形式で時間を解析（秒は00で固定）
+        if (!string.IsNullOrWhiteSpace(growthStartTimeStr))
+        {
+            if (TimeSpan.TryParseExact(growthStartTimeStr, @"hh\:mm", null, out var gts))
+            {
+                newItem.Parameters!.GrowthStartTime = gts;
+            }
+            else if (TimeSpan.TryParseExact(growthStartTimeStr, @"h\:mm", null, out var gts2))
+            {
+                newItem.Parameters!.GrowthStartTime = gts2;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(shoulderEndTimeStr))
+        {
+            if (TimeSpan.TryParseExact(shoulderEndTimeStr, @"hh\:mm", null, out var sets))
+            {
+                newItem.Parameters!.ShoulderEndTime = sets;
+            }
+            else if (TimeSpan.TryParseExact(shoulderEndTimeStr, @"h\:mm", null, out var sets2))
+            {
+                newItem.Parameters!.ShoulderEndTime = sets2;
+            }
+        }
+
+        newItem.CreatedAt = DateTime.UtcNow;
+        try
+        {
+            Logger.LogInformation("Saving GrowthNote: {item}", JsonSerializer.Serialize(newItem));
+        }
+        catch { }
+
+        using (var db = DbFactory.CreateDbContext())
+        {
+            db.GrowthNotes.Add(newItem);
+            await db.SaveChangesAsync();
+
+            try
+            {
+                var saved = await db.GrowthNotes.AsNoTracking()
+                    .Include(n => n.Parameters)
+                    .Include(n => n.Insulation)
+                    .FirstOrDefaultAsync(n => n.CGNoteId == newItem.CGNoteId);
+                Logger.LogInformation("Saved from DB: {item}", JsonSerializer.Serialize(saved));
+            }
+            catch { }
+        }
+
+        Navigation.NavigateTo("growth-note-v2");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("growth-note-v2");
+    }
+
+    private async Task ImportFromEquipment()
+    {
+        if (newItem.Parameters == null)
+        {
+            return;
+        }
+
+        importStatusMessage = null;
+        importErrorMessage = null;
+
+        var machineName = newItem.MachineName?.Trim();
+        if (string.IsNullOrWhiteSpace(machineName))
+        {
+            importErrorMessage = "装置名を入力してください。";
+            return;
+        }
+
+        try
+        {
+            var store = await ReadSettingsStoreAsync();
+            var savedSetting = FindSettingByMachineName(store, machineName);
+            var settings = NormalizeColumnSettings(savedSetting?.ColumnSettings);
+
+            var csvFileName = !string.IsNullOrWhiteSpace(savedSetting?.FileName)
+                ? NormalizeFileName(savedSetting.FileName)
+                : GetCsvFileNameFromMachineName(machineName);
+            var csvPath = Path.Combine(TargetDirectoryPath, csvFileName);
+
+            Logger.LogInformation("装置取込開始: Machine={MachineName}, CsvFile={CsvFile}, CsvPath={CsvPath}", machineName, csvFileName, csvPath);
+
+            if (!File.Exists(csvPath))
+            {
+                importErrorMessage = $"CSVファイルが見つかりません: {csvFileName}";
+                Logger.LogWarning("装置取込失敗: CSV未検出 Machine={MachineName}, CsvPath={CsvPath}", machineName, csvPath);
+                return;
+            }
+
+            var lastFields = await ReadLastCsvRowAsync(csvPath);
+
+            if (lastFields.Length == 0)
+            {
+                importErrorMessage = $"CSVファイルにデータ行がありません: {csvFileName}";
+                Logger.LogWarning("装置取込失敗: CSVにデータ行なし Machine={MachineName}, CsvFile={CsvFile}", machineName, csvFileName);
+                return;
+            }
+
+            ApplyImportDecimalPositions(settings);
+
+            newItem.Parameters.StartPullingSpeed = ReadMappedFloat(lastFields, settings[0]);
+            newItem.Parameters.ShoulderEndPullingSpeed = ReadMappedFloat(lastFields, settings[1]);
+            newItem.Parameters.LastPullingSpeed = ReadMappedFloat(lastFields, settings[2]);
+            newItem.Parameters.FirstRotationalSpeed = ReadMappedFloat(lastFields, settings[3]);
+            newItem.Parameters.ShoulderEndRotationalSpeed = ReadMappedFloat(lastFields, settings[4]);
+            newItem.Parameters.LastRotationalSpeed = ReadMappedFloat(lastFields, settings[5]);
+
+            importStatusMessage = $"装置「{machineName}」の設定で {csvFileName} から取り込みました。";
+            Logger.LogInformation("装置取込成功: Machine={MachineName}, CsvFile={CsvFile}, ColumnCount={ColumnCount}", machineName, csvFileName, lastFields.Length);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "装置データ取り込みに失敗しました。 MachineName: {MachineName}", machineName);
+            importErrorMessage = $"装置からの取り込みに失敗しました: {ex.Message}";
+        }
+    }
+
+    private async Task<SettingsStore> ReadSettingsStoreAsync()
+    {
+        var settingsPath = GetSettingsFilePath();
+        if (!File.Exists(settingsPath))
+        {
+            return new SettingsStore();
+        }
+
+        await using var stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        var store = await JsonSerializer.DeserializeAsync<SettingsStore>(stream) ?? new SettingsStore();
+
+        foreach (var item in store.Files)
+        {
+            item.FileName = NormalizeFileName(item.FileName);
+            item.ColumnSettings = NormalizeColumnSettings(item.ColumnSettings);
+        }
+
+        return store;
+    }
+
+    private string GetSettingsFilePath()
+    {
+        var primary = Path.Combine(HostEnvironment.ContentRootPath, SettingsDirectoryName, SettingsFileName);
+        if (File.Exists(primary))
+        {
+            return primary;
+        }
+
+        var parent = Directory.GetParent(HostEnvironment.ContentRootPath)?.FullName;
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            var sibling = Path.Combine(parent, "MesWEB", SettingsDirectoryName, SettingsFileName);
+            if (File.Exists(sibling))
+            {
+                return sibling;
+            }
+        }
+
+        return primary;
+    }
+
+    private static SavedFileSetting? FindSettingByMachineName(SettingsStore store, string machineName)
+    {
+        if (store.Files.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedMachineName = NormalizeFileName(machineName);
+        if (string.IsNullOrWhiteSpace(normalizedMachineName))
+        {
+            return null;
+        }
+
+        var candidates = new List<string> { normalizedMachineName };
+        if (!normalizedMachineName.Contains('.'))
+        {
+            candidates.Add($"{normalizedMachineName}.CSV");
+        }
+
+        return store.Files.FirstOrDefault(x =>
+            candidates.Any(c => string.Equals(NormalizeFileName(x.FileName), c, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static List<ColumnSetting> ResolveColumnSettings(SettingsStore store, string machineName)
+    {
+        var savedSetting = FindSettingByMachineName(store, machineName);
+        return NormalizeColumnSettings(savedSetting?.ColumnSettings);
+    }
+
+    private static async Task<string[]> ReadLastCsvRowAsync(string filePath)
+    {
+        await using var stream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 4096,
+            useAsync: true);
+
+        using var reader = new StreamReader(stream, FileEncoding, detectEncodingFromByteOrderMarks: true);
+        using var parser = new TextFieldParser(reader)
+        {
+            TextFieldType = FieldType.Delimited,
+            HasFieldsEnclosedInQuotes = true
+        };
+        parser.SetDelimiters(",");
+
+        string[] lastFields = [];
+        while (!parser.EndOfData)
+        {
+            lastFields = parser.ReadFields() ?? [];
+        }
+
+        return lastFields;
+    }
+
+    private static List<ColumnSetting> NormalizeColumnSettings(IEnumerable<ColumnSetting>? source)
+    {
+        var normalized = source?
+            .Take(ImportSettingCount)
+            .Select(x => new ColumnSetting
+            {
+                ColumnNumber = x.ColumnNumber > 0 ? x.ColumnNumber : 1,
+                DecimalPosition = x.DecimalPosition >= 0 ? x.DecimalPosition : 0
+            })
+            .ToList() ?? [];
+
+        while (normalized.Count < ImportSettingCount)
+        {
+            normalized.Add(new ColumnSetting { ColumnNumber = normalized.Count + 1, DecimalPosition = 0 });
+        }
+
+        return normalized;
+    }
+
+    private static float? ReadMappedFloat(string[] fields, ColumnSetting setting)
+    {
+        var index = setting.ColumnNumber - 1;
+        if (index < 0 || index >= fields.Length)
+        {
+            return null;
+        }
+
+        var formatted = FormatDecimalValue(fields[index], setting.DecimalPosition);
+        if (string.IsNullOrWhiteSpace(formatted))
+        {
+            return null;
+        }
+
+        if (float.TryParse(formatted, NumberStyles.Float, CultureInfo.InvariantCulture, out var invariantValue))
+        {
+            return invariantValue;
+        }
+
+        if (float.TryParse(formatted, NumberStyles.Float, CultureInfo.CurrentCulture, out var currentCultureValue))
+        {
+            return currentCultureValue;
+        }
+
+        return null;
+    }
+
+    private static string FormatDecimalValue(string? rawValue, int decimalPosition)
+    {
+        var value = rawValue?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(value) || decimalPosition <= 0)
+        {
+            return value;
+        }
+
+        var sign = string.Empty;
+        if (value.StartsWith('-') || value.StartsWith('+'))
+        {
+            sign = value[..1];
+            value = value[1..];
+        }
+
+        if (!value.All(char.IsDigit))
+        {
+            return sign + value;
+        }
+
+        if (value.Length <= decimalPosition)
+        {
+            value = value.PadLeft(decimalPosition + 1, '0');
+        }
+
+        var splitIndex = value.Length - decimalPosition;
+        return $"{sign}{value[..splitIndex]}.{value[splitIndex..]}";
+    }
+
+    private static string NormalizeFileName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return string.Empty;
+        }
+
+        return Path.GetFileName(fileName.Trim());
+    }
+
+    private static string GetCsvFileNameFromMachineName(string machineName)
+    {
+        var normalizedMachineName = NormalizeFileName(machineName);
+        if (string.IsNullOrWhiteSpace(normalizedMachineName))
+        {
+            return string.Empty;
+        }
+
+        return normalizedMachineName.Contains('.')
+            ? normalizedMachineName
+            : $"{normalizedMachineName}.CSV";
+    }
+
+    private void ApplyImportDecimalPositions(IReadOnlyList<ColumnSetting> settings)
+    {
+        for (var i = 0; i < ImportSettingCount; i++)
+        {
+            importDecimalPositions[i] = Math.Max(0, settings[i].DecimalPosition);
+        }
+    }
+
+    private string FormatImportedValue(float? value, int settingIndex)
+    {
+        if (!value.HasValue)
+        {
+            return string.Empty;
+        }
+
+        var digits = settingIndex >= 0 && settingIndex < importDecimalPositions.Length
+            ? Math.Clamp(importDecimalPositions[settingIndex], 0, 6)
+            : 0;
+
+        return value.Value.ToString($"F{digits}", CultureInfo.InvariantCulture);
+    }
+
+    private static float? ParseDotDecimalOrNull(string? text)
+    {
+        var value = text?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private string StartPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.StartPullingSpeed, 0);
+        set => newItem.Parameters!.StartPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string ShoulderEndPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.ShoulderEndPullingSpeed, 1);
+        set => newItem.Parameters!.ShoulderEndPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string LastPullingSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.LastPullingSpeed, 2);
+        set => newItem.Parameters!.LastPullingSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string FirstRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.FirstRotationalSpeed, 3);
+        set => newItem.Parameters!.FirstRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string ShoulderEndRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.ShoulderEndRotationalSpeed, 4);
+        set => newItem.Parameters!.ShoulderEndRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private string LastRotationalSpeedText
+    {
+        get => FormatImportedValue(newItem.Parameters?.LastRotationalSpeed, 5);
+        set => newItem.Parameters!.LastRotationalSpeed = ParseDotDecimalOrNull(value);
+    }
+
+    private sealed class SettingsStore
+    {
+        public List<SavedFileSetting> Files { get; set; } = [];
+    }
+
+    private sealed class SavedFileSetting
+    {
+        public string FileName { get; set; } = string.Empty;
+        public List<ColumnSetting> ColumnSettings { get; set; } = [];
+    }
+
+    private sealed class ColumnSetting
+    {
+        public int ColumnNumber { get; set; }
+        public int DecimalPosition { get; set; }
+    }
+
+    private void CalculatePelletSum()
+    {
+        int sum = (newItem.Pellet1Feed ?? 0) + (newItem.Pellet2Feed ?? 0) + (newItem.Pellet3Feed ?? 0);
+        newItem.PelletFeed = sum;
+    }
+
+    private void CalculateCulletSum()
+    {
+        int sum = (newItem.Cullet1Feed ?? 0) + (newItem.Cullet2Feed ?? 0) + (newItem.Cullet3Feed ?? 0);
+        newItem.CulletFeed = sum;
+    }
+
+    private async Task HandleOcrResult(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        Logger.LogInformation("OCR結果を受信: {Text}", text);
+
+        ocrText = text;
+        StateHasChanged();
+
+        Logger.LogInformation("OCR結果を表示しました");
+    }
+}

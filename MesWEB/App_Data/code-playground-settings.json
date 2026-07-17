@@ -1,0 +1,62 @@
+{
+  "Files": [
+    {
+      "FileName": "G2.CSV",
+      "ColumnSettings": [
+        {
+          "ColumnNumber": 1,
+          "DecimalPosition": 2
+        },
+        {
+          "ColumnNumber": 30,
+          "DecimalPosition": 2
+        },
+        {
+          "ColumnNumber": 60,
+          "DecimalPosition": 2
+        },
+        {
+          "ColumnNumber": 61,
+          "DecimalPosition": 2
+        },
+        {
+          "ColumnNumber": 90,
+          "DecimalPosition": 2
+        },
+        {
+          "ColumnNumber": 120,
+          "DecimalPosition": 2
+        }
+      ]
+    },
+    {
+      "FileName": "G1.CSV",
+      "ColumnSettings": [
+        {
+          "ColumnNumber": 1,
+          "DecimalPosition": 1
+        },
+        {
+          "ColumnNumber": 2,
+          "DecimalPosition": 0
+        },
+        {
+          "ColumnNumber": 3,
+          "DecimalPosition": 0
+        },
+        {
+          "ColumnNumber": 4,
+          "DecimalPosition": 0
+        },
+        {
+          "ColumnNumber": 5,
+          "DecimalPosition": 0
+        },
+        {
+          "ColumnNumber": 6,
+          "DecimalPosition": 0
+        }
+      ]
+    }
+  ]
+}
