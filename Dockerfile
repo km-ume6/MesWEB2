@@ -9,6 +9,7 @@ COPY ["MesWEB.GrowthNote/MesWEB.GrowthNote.csproj", "MesWEB.GrowthNote/"]
 
 RUN dotnet restore "MesWEB.sln"
 
+COPY ["MesWEB/appsettings.json", "MesWEB/"]
 COPY . .
 
 WORKDIR /src/MesWEB

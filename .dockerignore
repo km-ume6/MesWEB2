@@ -26,6 +26,7 @@ README.md
 **/*.db
 **/*.db-shm
 **/*.db-wal
-**/appsettings.json
 **/appsettings.Development.json
+!**/appsettings.json
+!**/appsettings.Production.json
 !**/appsettings.Container.json
