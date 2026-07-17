@@ -331,7 +331,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">保存されたテンプレート</label>
-            <select @bind="selectedTemplateId" class="form-select">
+            <select class="form-select" value="@selectedTemplateId" @onchange="OnTemplateSelectionChanged">
                 <option value="0">-- テンプレートを選択 --</option>
                 @foreach (var template in filteredTemplates)
                 {

@@ -629,6 +629,21 @@ public partial class ExcelCompare : IAsyncDisposable
         };
     }
 
+    private Task OnTemplateSelectionChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var templateId))
+        {
+            selectedTemplateId = templateId;
+        }
+        else
+        {
+            selectedTemplateId = 0;
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
     // ラベル選択時の処理
     private void OnLabelChanged()
     {
