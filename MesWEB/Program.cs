@@ -213,7 +213,6 @@ app.MapPost("/client-log", async (HttpContext context) =>
 var additionalAssemblies = new List<System.Reflection.Assembly>
 {
     typeof(MesWEB.ExcelCompare.Components.Pages.ExcelCompare).Assembly,
-    typeof(MesWEB.GrowthNote.Components.Pages.GrowthNoteV2).Assembly,
 };
 
 app.MapRazorComponents<App>()

@@ -6,9 +6,6 @@ namespace MesWEB.Shared.Data
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-        public DbSet<GrowthNoteItem> GrowthNotes { get; set; } = null!;
-        public DbSet<GrowthNoteParameters> GrowthNoteParameters { get; set; } = null!;
-        public DbSet<GrowthNoteInsulation> GrowthNoteInsulations { get; set; } = null!;
         public DbSet<PageAccessCounter> PageAccessCounters { get; set; } = null!;
         public DbSet<CellMappingLabel> CellMappingLabels { get; set; } = null!;
         public DbSet<CellMappingTemplate> CellMappingTemplates { get; set; } = null!;
@@ -17,20 +14,6 @@ namespace MesWEB.Shared.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            // GrowthNoteItem と GrowthNoteParameters (1:1)
-            modelBuilder.Entity<GrowthNoteItem>()
-                .HasOne(g => g.Parameters)
-                .WithOne(p => p.GrowthNote)
-                .HasForeignKey<GrowthNoteParameters>(p => p.CGNoteId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // GrowthNoteItem と GrowthNoteInsulation (1:1)
-            modelBuilder.Entity<GrowthNoteItem>()
-                .HasOne(g => g.Insulation)
-                .WithOne(i => i.GrowthNote)
-                .HasForeignKey<GrowthNoteInsulation>(i => i.CGNoteId)
-                .OnDelete(DeleteBehavior.Cascade);
 
             // CellMappingTemplateとCellMappingItemの親子関係定義
             modelBuilder.Entity<CellMappingTemplate>()

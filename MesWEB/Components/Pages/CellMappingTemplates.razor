@@ -1,6 +1,8 @@
 @page "/cell-mapping/templates"
 @rendermode InteractiveServer
 @using MesWEB.Shared.Data
+@using ClosedXML.Excel
+@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject Microsoft.Extensions.Logging.ILogger<CellMappingTemplatesPage> Logger
@@ -11,12 +13,53 @@
 
 <div class="card mb-3">
     <div class="card-body">
+        <div class="mb-2">
+            <label class="form-label mb-1">テンプレートのエクスポート / インポート (.xlsx)</label>
+            <div class="d-flex gap-2">
+                <InputFile style="display:none" id="importXlsxInput" OnChange="HandleImportFile" accept=".xlsx" />
+                <button class="btn btn-sm btn-outline-primary" @onclick="TriggerImportInput">インポート (.xlsx)</button>
+                <button class="btn btn-sm btn-outline-success" @onclick="ExportAllTemplates">全テンプレートをエクスポート (.xlsx)</button>
+            </div>
+        </div>
         <div class="row g-2 align-items-center">
             <div class="col-auto"><label class="form-label mb-0">新規ラベル名</label></div>
             <div class="col"><input class="form-control" @bind="newLabelName" placeholder="例) 装置A" /></div>
             <div class="col-auto"><button class="btn btn-primary" @onclick="AddLabel" disabled="@(string.IsNullOrWhiteSpace(newLabelName) || isBusy)">追加</button></div>
         </div>
     </div>
+
+@if (showImportPreview && importPreviewTemplate != null)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>インポートプレビュー: @importPreviewTemplate.TemplateName</h5>
+            <p class="text-muted">説明: @importPreviewTemplate.Description</p>
+            <p>項目数: @importPreviewTemplate.MappingItems.Count</p>
+            <div class="mb-2">
+                <button class="btn btn-sm btn-primary" @onclick="ConfirmImport">取り込み実行（名前を付けて新規作成）</button>
+                <button class="btn btn-sm btn-secondary" @onclick="() => { showImportPreview = false; importPreviewTemplate = null; }">キャンセル</button>
+            </div>
+            <div style="max-height:240px;overflow:auto;border:1px solid #eee;padding:8px;background:#fafafa;">
+                <table class="table table-sm">
+                    <thead><tr><th>#</th><th>項目名</th><th>Sheet1</th><th>Cell1</th><th>Sheet2</th><th>Cell2</th></tr></thead>
+                    <tbody>
+                        @foreach (var it in importPreviewTemplate.MappingItems.OrderBy(i => i.SortOrder))
+                        {
+                            <tr>
+                                <td>@it.SortOrder</td>
+                                <td>@it.ItemName</td>
+                                <td>@it.Sheet1Name</td>
+                                <td>@it.Sheet1Cell</td>
+                                <td>@it.Sheet2Name</td>
+                                <td>@it.Sheet2Cell</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
 </div>
 
 @if (isBusy)
@@ -153,6 +196,179 @@ else
 }
 
 @code {
+    // --- XLSX import/export support ---
+    private bool showImportPreview = false;
+    private CellMappingTemplate? importPreviewTemplate;
+
+    private async Task TriggerImportInput()
+    {
+        // call small JS helper to click the hidden file input
+        await JS.InvokeVoidAsync("triggerFileInput", "importXlsxInput");
+    }
+
+    private async Task HandleImportFile(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+        isBusy = true;
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(ms); // limit 10MB
+            ms.Position = 0;
+            using var wb = new XLWorkbook(ms);
+            // read first worksheet as template metadata if exists
+            var tpl = new CellMappingTemplate();
+            try
+            {
+                var ws = wb.Worksheets.First();
+                tpl.TemplateName = ws.Cell(1,2).GetString() ?? file.Name.Replace(".xlsx","",StringComparison.OrdinalIgnoreCase);
+                tpl.Description = ws.Cell(2,2).GetString();
+            }
+            catch { tpl.TemplateName = file.Name.Replace(".xlsx","",StringComparison.OrdinalIgnoreCase); }
+
+            // items sheet: try to find a sheet with suffix _Items or second sheet
+            IXLWorksheet itemsSheet = null!;
+            itemsSheet = wb.Worksheets.FirstOrDefault(ws => ws.Name.EndsWith("_Items", StringComparison.OrdinalIgnoreCase)) ?? wb.Worksheets.Skip(1).FirstOrDefault();
+            if (itemsSheet != null)
+            {
+                var rows = itemsSheet.RowsUsed().Skip(1);
+                tpl.MappingItems = new List<CellMappingItem>();
+                foreach (var r in rows)
+                {
+                    try
+                    {
+                        var it = new CellMappingItem
+                        {
+                            SortOrder = (int?)r.Cell(1).GetValue<int?>() ?? 0,
+                            ItemName = r.Cell(2).GetString() ?? string.Empty,
+                            Sheet1Name = r.Cell(3).GetString() ?? string.Empty,
+                            Sheet1Cell = r.Cell(4).GetString() ?? string.Empty,
+                            Sheet1Formula = (int?)r.Cell(5).GetValue<int?>() ?? 0,
+                            Sheet2Name = r.Cell(6).GetString() ?? string.Empty,
+                            Sheet2Cell = r.Cell(7).GetString() ?? string.Empty,
+                            Sheet2Formula = (int?)r.Cell(8).GetValue<int?>() ?? 0,
+                            DecimalPlaces = (int?)r.Cell(9).GetValue<int?>() ?? 2,
+                            Tolerance = (double?)r.Cell(10).GetValue<double?>() ?? 0.0
+                        };
+                        tpl.MappingItems.Add(it);
+                    }
+                    catch { continue; }
+                }
+            }
+
+            importPreviewTemplate = tpl;
+            showImportPreview = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Import failed");
+            // ignore show
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportAllTemplates()
+    {
+        // export all templates into a single workbook with multiple sheets
+        using var db = DbFactory.CreateDbContext();
+        var templates = await db.CellMappingTemplates.Include(t => t.MappingItems).ToListAsync();
+        using var wb = new XLWorkbook();
+
+        foreach (var t in templates)
+        {
+            var ws = wb.Worksheets.Add(string.IsNullOrWhiteSpace(t.TemplateName) ? $"Template_{t.TemplateId}" : t.TemplateName.Length > 31 ? t.TemplateName.Substring(0,31) : t.TemplateName);
+            ws.Cell(1,1).Value = "TemplateName";
+            ws.Cell(1,2).Value = t.TemplateName;
+            ws.Cell(2,1).Value = "Description";
+            ws.Cell(2,2).Value = t.Description ?? string.Empty;
+
+            var itemsSheet = wb.Worksheets.Add(ws.Name + "_Items");
+            var hdr = new[] { "SortOrder","ItemName","Sheet1Name","Sheet1Cell","Sheet1Formula","Sheet2Name","Sheet2Cell","Sheet2Formula","DecimalPlaces","Tolerance" };
+            for (int i=0;i<hdr.Length;i++) itemsSheet.Cell(1,i+1).Value = hdr[i];
+            var row=2;
+            foreach(var it in t.MappingItems.OrderBy(i=>i.SortOrder))
+            {
+                itemsSheet.Cell(row,1).Value = it.SortOrder;
+                itemsSheet.Cell(row,2).Value = it.ItemName;
+                itemsSheet.Cell(row,3).Value = it.Sheet1Name;
+                itemsSheet.Cell(row,4).Value = it.Sheet1Cell;
+                itemsSheet.Cell(row,5).Value = it.Sheet1Formula;
+                itemsSheet.Cell(row,6).Value = it.Sheet2Name;
+                itemsSheet.Cell(row,7).Value = it.Sheet2Cell;
+                itemsSheet.Cell(row,8).Value = it.Sheet2Formula;
+                itemsSheet.Cell(row,9).Value = it.DecimalPlaces;
+                itemsSheet.Cell(row,10).Value = it.Tolerance;
+                row++;
+            }
+        }
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        var bytes = ms.ToArray();
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFileFromBase64", base64, "cell-mapping-templates.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (importPreviewTemplate is null) return;
+        isBusy = true;
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            // ensure unique name: append suffix if exists
+            var baseName = importPreviewTemplate.TemplateName ?? "ImportedTemplate";
+            var targetName = baseName;
+            int suffix = 1;
+            while (await db.CellMappingTemplates.AnyAsync(x => x.TemplateName == targetName))
+            {
+                targetName = baseName + " (imported " + suffix + ")";
+                suffix++;
+            }
+
+            var newTemplate = new CellMappingTemplate
+            {
+                TemplateName = targetName,
+                Description = importPreviewTemplate.Description,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                LabelId = importPreviewTemplate.LabelId
+            };
+            db.CellMappingTemplates.Add(newTemplate);
+            await db.SaveChangesAsync();
+
+            var items = importPreviewTemplate.MappingItems.Select(it => new CellMappingItem
+            {
+                TemplateId = newTemplate.TemplateId,
+                SortOrder = it.SortOrder,
+                ItemName = it.ItemName,
+                Sheet1Name = it.Sheet1Name,
+                Sheet1Cell = it.Sheet1Cell,
+                Sheet1Formula = it.Sheet1Formula,
+                Sheet2Name = it.Sheet2Name,
+                Sheet2Cell = it.Sheet2Cell,
+                Sheet2Formula = it.Sheet2Formula,
+                DecimalPlaces = it.DecimalPlaces,
+                Tolerance = it.Tolerance
+            }).ToList();
+
+            db.CellMappingItems.AddRange(items);
+            await db.SaveChangesAsync();
+        }
+        finally
+        {
+            isBusy = false;
+            showImportPreview = false;
+            importPreviewTemplate = null;
+            await LoadTree();
+        }
+    }
+
     private List<CellMappingLabel> labels = new();
     private List<CellMappingTemplate> unclassifiedTemplates = new();
 

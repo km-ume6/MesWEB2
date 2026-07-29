@@ -205,6 +205,18 @@ window.downloadFile = function(fileName, base64String) {
     return window.downloadFileFromBase64(base64String, fileName, 'text/csv;charset=utf-8');
 };
 
+// helper to trigger file input click from Blazor
+window.triggerFileInput = function(id) {
+    try {
+        var el = document.getElementById(id);
+        if (el) el.click();
+        return true;
+    } catch (e) {
+        console.error('triggerFileInput error', e);
+        return false;
+    }
+};
+
 // --- client-logger.js ---
 window.clientLogger = (function () {
     const getClientLogUrl = () => {

@@ -5,8 +5,9 @@
     position: fixed;
     left: 0;
     top: 0;
-    width: 360px;      /* デフォルト幅、JavaScriptで動的に調整される */
-    min-width: 220px;
+    width: 180px;      /* 固定幅: 元の半分 */
+    min-width: 180px;
+    max-width: 180px;
     height: 100vh;
     background-color: #071029;
     padding: 1rem 0.75rem;
@@ -40,12 +41,13 @@
 .nav-link {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.75rem;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.5rem;
     color: #ffffff; /* brighter text */
     text-decoration: none;
     border-radius: 8px;
-    font-size: 1.0rem;
+    font-size: 0.85rem;
     cursor: pointer;
 }
 
@@ -60,14 +62,15 @@
 
 .icon-wrapper {
     display: inline-flex;
-    width: 36px; /* icon slot width inside full pane */
-    min-width: 36px;
+    width: 32px; /* icon slot width inside narrow pane */
+    min-width: 32px;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .link-text {
-    display: inline-block;
+    display: none;
     opacity: 1;
     transform: none;
     color: #ffffff; /* ensure explicit color for link text */
@@ -121,9 +124,10 @@
 
     /* off-canvas pane */
     .nav-pane {
-        left: -260px; /* hidden by default */
-        width: 260px !important; /* モバイルでは固定幅 */
-        min-width: 260px;
+        left: -200px; /* hidden by default */
+        width: 200px !important; /* モバイルでは固定幅 */
+        min-width: 200px;
+        max-width: 200px;
         padding: 1rem 1rem;
         transition: left 0.28s ease; /* モバイルではleftのアニメーションのみ */
         z-index: 1160; /* ensure above overlay on mobile */
@@ -136,7 +140,10 @@
     .header-full { display: none; }
 
     /* link text visible when open (since pane is off-canvas otherwise not visible) */
-    .link-text { opacity: 1; }
+    .link-text { 
+        display: inline-block;
+        opacity: 1; 
+    }
 
     /* overlay when open */
     .nav-overlay {
@@ -144,7 +151,9 @@
     }
 
     .nav-link {
+        justify-content: flex-start;
         padding: 0.75rem 0.75rem;
         font-size: 1rem;
+        gap: 0.75rem;
     }
 }
