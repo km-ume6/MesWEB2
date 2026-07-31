@@ -90,7 +90,7 @@ public partial class ExcelCompare : IAsyncDisposable
             }
 
             // 初期状態ではすべて表示
-            filteredTemplates = savedTemplates;
+            ApplyTemplateFilter();
         }
         catch (Exception ex)
         {
@@ -647,21 +647,7 @@ public partial class ExcelCompare : IAsyncDisposable
     // ラベル選択時の処理
     private void OnLabelChanged()
     {
-        if (selectedLabelId == 0)
-        {
-            // すべて表示
-            filteredTemplates = savedTemplates;
-        }
-        else if (selectedLabelId == -1)
-        {
-            // 未分類（LabelId == null）
-            filteredTemplates = savedTemplates.Where(t => t.LabelId == null).ToList();
-        }
-        else
-        {
-            // 特定のラベルに属するテンプレート
-            filteredTemplates = savedTemplates.Where(t => t.LabelId == selectedLabelId).ToList();
-        }
+        ApplyTemplateFilter();
 
         // テンプレート選択をリセット
         selectedTemplateId = 0;

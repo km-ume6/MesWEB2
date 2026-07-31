@@ -36,6 +36,8 @@ public partial class ExcelCompare
 
             Logger.LogInformation($"テンプレート読み込み完了: {savedTemplates.Count}件");
 
+            ApplyTemplateFilter();
+
             // デバッグ: テンプレート名をログ出力
             foreach (var template in savedTemplates)
             {
@@ -260,6 +262,22 @@ public partial class ExcelCompare
             templateMessage = $"更新エラー: {ex.Message}";
             Logger.LogError(ex, "テンプレート更新エラー: {Message}, InnerException: {Inner}", ex.Message, ex.InnerException?.Message);
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyTemplateFilter()
+    {
+        if (selectedLabelId == 0)
+        {
+            filteredTemplates = savedTemplates;
+        }
+        else if (selectedLabelId == -1)
+        {
+            filteredTemplates = savedTemplates.Where(t => t.LabelId == null).ToList();
+        }
+        else
+        {
+            filteredTemplates = savedTemplates.Where(t => t.LabelId == selectedLabelId).ToList();
         }
     }
 
