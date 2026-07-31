@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.0.11217.181
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MesWEB.Shared", "MesWEB.Shared\MesWEB.Shared.csproj", "{226853F3-F287-44F7-A4C3-A00AF45E280C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CompareWorksheets.Shared", "MesWEB.Shared\\CompareWorksheets.Shared.csproj", "{226853F3-F287-44F7-A4C3-A00AF45E280C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MesWEB.ExcelCompare", "MesWEB.ExcelCompare\MesWEB.ExcelCompare.csproj", "{7167C4E3-FC81-451B-B57F-C2C3E2DF3ED6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CompareWorksheets.ExcelCompare", "MesWEB.ExcelCompare\\CompareWorksheets.ExcelCompare.csproj", "{7167C4E3-FC81-451B-B57F-C2C3E2DF3ED6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MesWEB", "MesWEB\MesWEB.csproj", "{CAC2D859-DF01-4BAB-5E34-37B0EB45E389}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CompareWorksheets", "MesWEB\\CompareWorksheets.csproj", "{CAC2D859-DF01-4BAB-5E34-37B0EB45E389}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

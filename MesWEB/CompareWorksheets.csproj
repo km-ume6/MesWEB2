@@ -4,8 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MesWEB</RootNamespace>
     <UserSecretsId>de1f20d6-0394-4c7e-9c47-1b9ed0e7de1a</UserSecretsId>
-    <!-- コンテナビルド時の文字化け対策 -->
+    <!-- コンチE��ビルド時の斁E��化け対筁E-->
     <Utf8Output>true</Utf8Output>
   </PropertyGroup>
 
@@ -22,12 +23,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MesWEB.ExcelCompare\MesWEB.ExcelCompare.csproj" />
-    <ProjectReference Include="..\MesWEB.Shared\MesWEB.Shared.csproj" />
+    <ProjectReference Include="..\MesWEB.ExcelCompare\CompareWorksheets.ExcelCompare.csproj" />
+    <ProjectReference Include="..\MesWEB.Shared\CompareWorksheets.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="wwwroot\js\" />
   </ItemGroup>
 </Project>
+
+
+
 
